@@ -1,9 +1,11 @@
-import { ExternalLink, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, ExternalLink, Plus, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
-import { Button, Field, Input, Select, Textarea, Toggle, useToast } from '../../components/ui';
+import { Markdown } from '../../components/Markdown';
+import { Button, Field, Input, Select, Textarea, Toggle, cx, useToast } from '../../components/ui';
 import { supabase, unwrap } from '../../lib/supabase';
 import type { LandingConfig, LandingLink } from '../../lib/types';
-import { errorMessage, landingUrl, timezones } from '../../lib/utils';
+import { brandStyle, errorMessage, landingUrl, timezones } from '../../lib/utils';
+import { THEMES } from '../live/LivePage';
 import { PageHeader } from './AdminLayout';
 import { ImageInput } from './ImageInput';
 import { useAdmin } from './context';
@@ -51,7 +53,7 @@ export default function Branding() {
     }
   };
 
-  const previewUrl = landingUrl(church.slug);
+  const publicLandingUrl = landingUrl(church.slug);
 
   return (
     <>
@@ -60,7 +62,7 @@ export default function Branding() {
         description="Customize what attendees see when they scan the QR code or tap the NFC tag."
         actions={
           <a
-            href={previewUrl}
+            href={publicLandingUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
@@ -118,7 +120,7 @@ export default function Branding() {
             <p className="text-xs text-slate-500">Shown when no service action is active.</p>
             <ImageInput churchId={church.id} label="Hero image" value={landing.hero_image_url} onChange={(url) => setL({ hero_image_url: url })} />
             <Field label="Welcome title">
-              <Input value={landing.welcome_title || ''} onChange={(e) => setL({ welcome_title: e.target.value })} placeholder={`Welcome to ${church.name}`} />
+              <Input value={landing.welcome_title || ''} onChange={(e) => setL({ welcome_title: e.target.value })} placeholder={`Welcome to ${name || 'our church'}`} />
             </Field>
             <Field label="Welcome message" hint="Markdown supported">
               <Textarea rows={3} value={landing.welcome_message || ''} onChange={(e) => setL({ welcome_message: e.target.value })} placeholder="We are glad you are here with us today." />
@@ -144,20 +146,123 @@ export default function Branding() {
           </div>
         </form>
 
-        {/* Live mobile preview */}
+        {/* Live mobile preview without iframes or flickering */}
         <aside className="hidden lg:block">
           <div className="sticky top-20">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Live preview</span>
-              <span className="text-xs text-slate-400">Updates on save</span>
+              <span className="text-xs font-medium text-brand">Real-time</span>
             </div>
             <div className="mx-auto aspect-[9/18] w-full overflow-hidden rounded-3xl border-4 border-slate-800 shadow-2xl">
-              <iframe src={`${previewUrl}?preview=1`} title="Live preview" className="h-full w-full bg-slate-100" />
+              <PhonePreview
+                name={name}
+                logoUrl={logoUrl}
+                primary={primary}
+                accent={accent}
+                landing={landing}
+              />
             </div>
           </div>
         </aside>
       </div>
     </>
+  );
+}
+
+function PhonePreview({
+  name,
+  logoUrl,
+  primary,
+  accent,
+  landing,
+}: {
+  name: string;
+  logoUrl?: string;
+  primary: string;
+  accent: string;
+  landing: LandingConfig;
+}) {
+  const theme = THEMES[landing.theme || 'light'];
+  const welcomeTitle = landing.welcome_title || `Welcome to ${name || 'our church'}`;
+  const welcomeMessage = landing.welcome_message || 'We are glad you are here with us today.';
+
+  return (
+    <div
+      className={cx('h-full w-full overflow-y-auto p-4 text-left transition-colors duration-200 select-none', theme.page)}
+      style={brandStyle(primary, accent)}
+    >
+      {/* Phone status bar simulation */}
+      <div className="mb-3 flex items-center justify-between text-[11px] opacity-60">
+        <span className="font-semibold">9:41</span>
+        <div className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          <span className="h-2 w-3 rounded-sm border border-current" />
+        </div>
+      </div>
+
+      {/* Header */}
+      <header className="mb-4 flex items-center justify-between gap-2 border-b border-black/5 pb-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg bg-white object-contain p-0.5 shadow-sm" />
+          ) : (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand font-bold text-white shadow-sm text-sm">
+              {(name || 'C').charAt(0)}
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold leading-tight">{name || 'Your Church'}</p>
+            {landing.show_service_name !== false && (
+              <p className="truncate text-[10px] opacity-70">Sunday Worship</p>
+            )}
+          </div>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-bold text-white">
+          LIVE
+        </span>
+      </header>
+
+      {/* Main card */}
+      <article className={cx('overflow-hidden rounded-2xl shadow-md transition-colors', theme.card)}>
+        {landing.hero_image_url && (
+          <img src={landing.hero_image_url} alt="" className="aspect-[16/9] w-full object-cover" />
+        )}
+        <div className="space-y-3 p-4">
+          <h1 className="text-base font-bold leading-snug">{welcomeTitle}</h1>
+          <div className={cx('text-xs', theme.muted)}>
+            <Markdown>{welcomeMessage}</Markdown>
+          </div>
+          {landing.show_next_service !== false && (
+            <div className={cx('flex items-center gap-2.5 rounded-xl p-2.5', theme.chip)}>
+              <CalendarClock className="h-4 w-4 shrink-0 text-brand" />
+              <div className="text-[11px]">
+                <p className="font-semibold">Sunday Service</p>
+                <p className="opacity-75">Sun 10:00 AM</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </article>
+
+      {/* Footer */}
+      {(landing.links?.length || landing.footer_text) && (
+        <footer className="mt-5 space-y-2 text-center text-[11px]">
+          {landing.links && landing.links.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {landing.links.map((l, i) => (
+                <span
+                  key={i}
+                  className={cx('rounded-full px-2.5 py-1 font-medium', landing.theme === 'brand' ? 'bg-white/15 text-white' : theme.chip)}
+                >
+                  {l.label || 'Link'}
+                </span>
+              ))}
+            </div>
+          )}
+          {landing.footer_text && <p className="text-[10px] opacity-70">{landing.footer_text}</p>}
+        </footer>
+      )}
+    </div>
   );
 }
 

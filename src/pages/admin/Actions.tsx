@@ -1,9 +1,11 @@
-import { ArrowDown, ArrowUp, ExternalLink, Eye, Pencil, Pin, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eye, Pencil, Pin, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, EmptyState, Field, Input, Modal, PageLoader, Select, Toggle, useToast } from '../../components/ui';
 import { supabase, unwrap } from '../../lib/supabase';
-import { ACTION_TYPES, type Action, type ActionType, type Service } from '../../lib/types';
-import { describeOffsets, errorMessage, landingUrl } from '../../lib/utils';
+import { ACTION_TYPES, type Action, type ActionType, type Church, type LiveAction, type Service } from '../../lib/types';
+import { brandStyle, describeOffsets, errorMessage } from '../../lib/utils';
+import { ActionView } from '../live/ActionView';
+import { THEMES } from '../live/LivePage';
 import { ContentEditor, defaultContent, FORM_PRESETS, normalizeContent, validateContent } from './ActionEditors';
 import { PageHeader } from './AdminLayout';
 import { useAdmin } from './context';
@@ -202,8 +204,7 @@ export default function Actions() {
       {editing && (
         <ActionModal
           initial={editing}
-          churchId={church.id}
-          churchSlug={church.slug}
+          church={church}
           services={services}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -218,15 +219,13 @@ export default function Actions() {
 
 function ActionModal({
   initial,
-  churchId,
-  churchSlug,
+  church,
   services,
   onClose,
   onSaved,
 }: {
   initial: Partial<Action>;
-  churchId: string;
-  churchSlug: string;
+  church: Church;
   services: Service[];
   onClose: () => void;
   onSaved: () => void;
@@ -271,7 +270,7 @@ function ActionModal({
 
     setBusy(true);
     const payload = {
-      church_id: churchId,
+      church_id: church.id,
       service_id: form.service_id || null,
       type,
       title: form.title?.trim(),
@@ -293,9 +292,6 @@ function ActionModal({
       setBusy(false);
     }
   };
-
-  const currentService = services.find((s) => s.id === form.service_id);
-  const previewUrl = landingUrl(churchSlug, currentService?.slug);
 
   return (
     <Modal open onClose={onClose} title={initial.id ? 'Edit action' : 'New action'} wide>
@@ -339,7 +335,7 @@ function ActionModal({
             type={form.type || 'announcement'}
             value={form.content || {}}
             onChange={(c) => set({ content: c })}
-            churchId={churchId}
+            churchId={church.id}
           />
         </div>
 
@@ -391,17 +387,23 @@ function ActionModal({
       </form>
 
       {previewOpen && (
-        <Modal open onClose={() => setPreviewOpen(false)} title="Live page preview">
-          <p className="mb-3 text-xs text-slate-500">
-            This opens the current landing page in an iframe. To see this exact action, save it first and use “Push live”.
-          </p>
-          <div className="mx-auto aspect-[9/16] max-h-[70vh] w-full max-w-sm overflow-hidden rounded-2xl border-4 border-slate-800 shadow-xl">
-            <iframe src={`${previewUrl}?preview=1`} title="Preview" className="h-full w-full bg-white" />
-          </div>
-          <div className="mt-3 text-center">
-            <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-brand hover:underline">
-              Open in new tab <ExternalLink className="h-3 w-3" />
-            </a>
+        <Modal open onClose={() => setPreviewOpen(false)} title={`Action Preview: ${form.title || 'Untitled'}`}>
+          <div
+            className="mx-auto aspect-[9/16] max-h-[70vh] w-full max-w-sm overflow-y-auto rounded-2xl border-4 border-slate-800 bg-slate-100 p-4 shadow-xl select-none"
+            style={brandStyle(church.primary_color, church.accent_color)}
+          >
+            <ActionView
+              action={{
+                id: form.id || 'preview',
+                type: form.type || 'announcement',
+                title: form.title || 'Action title',
+                content: form.content || {},
+                pinned: false,
+                visible_until: null,
+              } as LiveAction}
+              theme={THEMES.light}
+              preview={true}
+            />
           </div>
         </Modal>
       )}

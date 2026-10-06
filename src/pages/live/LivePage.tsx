@@ -8,7 +8,7 @@ import type { LivePage as LivePageData } from '../../lib/types';
 import { brandStyle, formatInZone } from '../../lib/utils';
 import { ActionView, type ThemeTokens } from './ActionView';
 
-const THEMES: Record<'light' | 'dark' | 'brand', ThemeTokens> = {
+export const THEMES: Record<'light' | 'dark' | 'brand', ThemeTokens> = {
   light: {
     page: 'bg-slate-100 text-slate-900',
     card: 'bg-white text-slate-900',

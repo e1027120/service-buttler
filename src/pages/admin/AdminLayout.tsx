@@ -42,28 +42,36 @@ export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('church_members')
-      .select('church_id, role, churches(*)')
-      .eq('user_id', user!.id);
-    if (error) throw error;
-    const list = (data as unknown as Membership[]).filter((m) => m.churches);
-    setMemberships(list.sort((a, b) => a.churches.name.localeCompare(b.churches.name)));
-    const current = list.find((m) => m.church_id === churchId);
-    if (!current) {
+  const userId = user?.id;
+
+  const load = useCallback(async (isInitial = false) => {
+    if (!userId) return;
+    if (isInitial) setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('church_members')
+        .select('church_id, role, churches(*)')
+        .eq('user_id', userId);
+      if (error) throw error;
+      const list = (data as unknown as Membership[]).filter((m) => m.churches);
+      setMemberships(list.sort((a, b) => a.churches.name.localeCompare(b.churches.name)));
+      const current = list.find((m) => m.church_id === churchId);
+      if (!current) {
+        navigate('/admin', { replace: true });
+        return;
+      }
+      setChurch(current.churches);
+      setRole(current.role);
+    } catch {
       navigate('/admin', { replace: true });
-      return;
+    } finally {
+      setLoading(false);
     }
-    setChurch(current.churches);
-    setRole(current.role);
-    setLoading(false);
-  }, [churchId, user, navigate]);
+  }, [churchId, userId, navigate]);
 
   useEffect(() => {
-    setLoading(true);
-    load().catch(() => navigate('/admin', { replace: true }));
-  }, [load, navigate]);
+    load(true);
+  }, [churchId, userId, load]);
 
   useEffect(() => setMobileOpen(false), [churchId]);
 
@@ -72,7 +80,7 @@ export default function AdminLayout() {
   const ctx: AdminContext = {
     church,
     role,
-    reloadChurch: load,
+    reloadChurch: () => load(false),
     canAdmin: role === 'owner' || role === 'admin',
   };
 
