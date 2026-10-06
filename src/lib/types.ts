@@ -142,7 +142,11 @@ export interface OfferingMethod {
   label: string;
   description?: string;
   url?: string;
-  details?: string; // e.g. bank transfer / IBAN text
+  account_holder?: string; // Beneficiary / Account holder name
+  iban?: string; // IBAN for bank transfer
+  bic?: string; // Optional BIC / SWIFT code
+  reference?: string; // Payment reference / purpose text
+  details?: string; // Additional / legacy details or notes
 }
 export interface OfferingContent {
   message?: string;

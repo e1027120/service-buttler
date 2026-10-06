@@ -787,18 +787,56 @@ export function ContentEditor({
               create={() => ({ id: shortId(), label: '' })}
               addLabel="Add method"
               render={(m, update) => (
-                <div className="grid w-full gap-2 rounded-lg border border-slate-200 p-3">
-                  <Input required value={m.label} onChange={(e) => update({ ...m, label: e.target.value })} placeholder="Label (e.g. Card / PayPal / Bank transfer)" />
-                  <Input value={m.description || ''} onChange={(e) => update({ ...m, description: e.target.value })} placeholder="Short description (optional)" />
-                  <Input type="url" value={m.url || ''} onChange={(e) => update({ ...m, url: e.target.value })} placeholder="Giving link https://… (optional)" />
-                  <Textarea
-                    rows={2}
-                    className="min-h-0 font-mono"
-                    value={m.details || ''}
-                    onChange={(e) => update({ ...m, details: e.target.value })}
-                    placeholder={'Copyable details, e.g.\nIBAN: DE00 0000 0000 0000\nReference: Offering'}
-                  />
-                </div>
+                  <div className="grid w-full gap-2.5 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input
+                        required
+                        value={m.label}
+                        onChange={(e) => update({ ...m, label: e.target.value })}
+                        placeholder="Label (e.g. Bank Transfer / Erste Bank / PayPal)"
+                      />
+                      <Input
+                        value={m.description || ''}
+                        onChange={(e) => update({ ...m, description: e.target.value })}
+                        placeholder="Short description (optional)"
+                      />
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input
+                        value={m.account_holder || ''}
+                        onChange={(e) => update({ ...m, account_holder: e.target.value })}
+                        placeholder="Account holder / Recipient name (e.g. Grace Church)"
+                      />
+                      <Input
+                        value={m.iban || ''}
+                        onChange={(e) => update({ ...m, iban: e.target.value.toUpperCase() })}
+                        placeholder="IBAN (e.g. AT12 3456 7890 1234 5678)"
+                      />
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Input
+                        value={m.reference || ''}
+                        onChange={(e) => update({ ...m, reference: e.target.value })}
+                        placeholder="Payment purpose / Reference (e.g. Sunday Offering)"
+                      />
+                      <Input
+                        type="url"
+                        value={m.url || ''}
+                        onChange={(e) => update({ ...m, url: e.target.value })}
+                        placeholder="Online giving link https://… (optional)"
+                      />
+                    </div>
+
+                    <Textarea
+                      rows={2}
+                      className="min-h-0 font-mono text-xs"
+                      value={m.details || ''}
+                      onChange={(e) => update({ ...m, details: e.target.value })}
+                      placeholder={'Additional notes or info (optional)\ne.g. Tax ID, BIC/SWIFT: BKAUATWW...'}
+                    />
+                  </div>
               )}
             />
           </div>

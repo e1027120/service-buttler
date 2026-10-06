@@ -1,4 +1,5 @@
-import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Info, Send, Share2 } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Info, QrCode, Send, Share2 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
 import { cx } from '../../components/ui';
@@ -10,6 +11,7 @@ import type {
   LinkContent,
   LiveAction,
   OfferingContent,
+  OfferingMethod,
   PollContent,
   PollResults,
   SermonNotesContent,
@@ -667,6 +669,211 @@ function Poll({ id, title, c, theme, preview }: { id: string; title: string; c: 
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+function BankTransferCard({
+  m,
+  theme,
+  copied,
+  onCopy,
+}: {
+  m: OfferingMethod;
+  theme: ThemeTokens;
+  copied: string | null;
+  onCopy: (id: string, text: string) => void;
+}) {
+  const [showQr, setShowQr] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  const cleanIban = (m.iban || '').replace(/\s+/g, '').toUpperCase();
+  const hasIban = Boolean(cleanIban);
+
+  // Generate SEPA EPC QR code (EPC069-12 standard) if IBAN is present
+  useEffect(() => {
+    if (!hasIban || !m.account_holder) return;
+
+    // Standard EPC QR payload
+    const epcPayload = [
+      'BCD', // Service Tag
+      '002', // Version
+      '1', // Character set: UTF-8
+      'SCT', // SEPA Credit Transfer
+      m.bic ? m.bic.trim().toUpperCase() : '', // BIC (optional)
+      m.account_holder.trim().slice(0, 70), // Beneficiary Name
+      cleanIban, // IBAN
+      '', // Amount (empty for attendee to choose)
+      '', // Purpose code
+      '', // Structured Remittance Reference
+      m.reference ? m.reference.trim().slice(0, 140) : 'Offering', // Unstructured Remittance Info
+    ].join('\n');
+
+    QRCode.toDataURL(epcPayload, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 240,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch((err) => console.warn('QR code generation error:', err));
+  }, [hasIban, cleanIban, m.account_holder, m.bic, m.reference]);
+
+  // Banking app links (George / Erste Bank & Bank Austria MobileBanking)
+  const isAustrianIban = cleanIban.startsWith('AT');
+
+  return (
+    <div className={cx('rounded-2xl p-4 sm:p-5 space-y-3.5', theme.chip)}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-bold text-base leading-snug">{m.label}</div>
+          {m.description && <p className={cx('text-xs mt-0.5', theme.muted)}>{m.description}</p>}
+        </div>
+
+        {hasIban && m.account_holder && qrDataUrl && (
+          <button
+            type="button"
+            onClick={() => setShowQr(!showQr)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white"
+            title="Show SEPA QR Code to scan with banking app"
+          >
+            <QrCode className="h-3.5 w-3.5 text-brand" />
+            <span>{showQr ? 'Hide QR' : 'Banking QR'}</span>
+          </button>
+        )}
+      </div>
+
+      {/* SEPA / EPC QR Code Display */}
+      {showQr && qrDataUrl && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-4 text-center shadow-inner animate-fade-in space-y-2">
+          <p className="text-xs font-semibold text-slate-800">Scan with your Banking App</p>
+          <img src={qrDataUrl} alt="SEPA QR Code" className="h-44 w-44 rounded-xl shadow-sm border border-slate-100" />
+          <p className="text-[11px] text-slate-500 max-w-xs leading-tight">
+            Open George, Bank Austria MobileBanking, or any banking app and select <strong>Scan & Pay</strong>.
+          </p>
+        </div>
+      )}
+
+      {/* Structured Fields: Name, IBAN, Reference with separate copy buttons */}
+      {(m.account_holder || m.iban || m.reference) ? (
+        <div className="space-y-2">
+          {m.account_holder && (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-white/90 p-2.5 shadow-sm border border-slate-200/60">
+              <div className="min-w-0 pr-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recipient / Name</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">{m.account_holder}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onCopy(`${m.id}_holder`, m.account_holder!)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition active:scale-95"
+                aria-label="Copy recipient name"
+              >
+                {copied === `${m.id}_holder` ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copied === `${m.id}_holder` ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          )}
+
+          {m.iban && (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-white/90 p-2.5 shadow-sm border border-slate-200/60">
+              <div className="min-w-0 pr-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">IBAN</p>
+                <p className="text-sm font-mono font-bold text-slate-900 tracking-wide break-all">{m.iban}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onCopy(`${m.id}_iban`, cleanIban)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition active:scale-95"
+                aria-label="Copy IBAN"
+              >
+                {copied === `${m.id}_iban` ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copied === `${m.id}_iban` ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          )}
+
+          {m.reference && (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-white/90 p-2.5 shadow-sm border border-slate-200/60">
+              <div className="min-w-0 pr-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Reference</p>
+                <p className="text-sm font-medium text-slate-900 truncate">{m.reference}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onCopy(`${m.id}_ref`, m.reference!)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition active:scale-95"
+                aria-label="Copy reference"
+              >
+                {copied === `${m.id}_ref` ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copied === `${m.id}_ref` ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Legacy or additional freeform details */}
+      {m.details && (
+        <div className="flex items-start justify-between gap-3 rounded-xl bg-white/70 p-2.5 text-xs">
+          <pre className="whitespace-pre-wrap break-all font-mono text-xs text-slate-700">{m.details}</pre>
+          <button
+            type="button"
+            onClick={() => onCopy(m.id, m.details!)}
+            className="shrink-0 rounded-lg p-1.5 hover:bg-slate-200"
+            aria-label="Copy details"
+          >
+            {copied === m.id ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+          </button>
+        </div>
+      )}
+
+      {/* Bank Quick Launcher (Erste Bank / George & Bank Austria) */}
+      {hasIban && isAustrianIban && (
+        <div className="pt-1 border-t border-slate-200/50 space-y-2">
+          <p className="text-[11px] font-semibold text-slate-600">Open your Banking App:</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <a
+              href="george://"
+              onClick={() => {
+                // Fallback to web George / app store if app scheme is not opened
+                setTimeout(() => {
+                  window.open('https://george.sparkasse.at', '_blank');
+                }, 1200);
+              }}
+              className="flex items-center justify-center gap-1 rounded-xl bg-white p-2 font-semibold text-slate-800 shadow-sm border border-slate-200 hover:border-brand/40 transition active:scale-95 text-center"
+            >
+              <span>Erste (George)</span>
+              <ExternalLink className="h-3 w-3 text-slate-400" />
+            </a>
+
+            <a
+              href="bankaustria://"
+              onClick={() => {
+                // Fallback to Bank Austria portal if app scheme not installed
+                setTimeout(() => {
+                  window.open('https://www.bankaustria.at', '_blank');
+                }, 1200);
+              }}
+              className="flex items-center justify-center gap-1 rounded-xl bg-white p-2 font-semibold text-slate-800 shadow-sm border border-slate-200 hover:border-brand/40 transition active:scale-95 text-center"
+            >
+              <span>Bank Austria</span>
+              <ExternalLink className="h-3 w-3 text-slate-400" />
+            </a>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-tight">
+            Tap &quot;Copy&quot; on the IBAN above, or tap &quot;Banking QR&quot; to scan with your banking app.
+          </p>
+        </div>
+      )}
+
+      {/* Optional external giving link */}
+      {m.url && (
+        <a href={safeUrl(m.url)} target="_blank" rel="noopener noreferrer" className={cx(primaryBtn, 'mt-2 text-sm py-2.5')}>
+          Give with {m.label} <ExternalLink className="h-4 w-4" />
+        </a>
+      )}
+    </div>
+  );
+}
+
 function Offering({ title, c, theme }: { title: string; c: OfferingContent; theme: ThemeTokens }) {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (id: string, text: string) => {
@@ -674,6 +881,7 @@ function Offering({ title, c, theme }: { title: string; c: OfferingContent; them
     setCopied(id);
     setTimeout(() => setCopied(null), 2000);
   };
+
   return (
     <Shell theme={theme}>
       <div className="flex items-center gap-3">
@@ -684,28 +892,9 @@ function Offering({ title, c, theme }: { title: string; c: OfferingContent; them
       </div>
       <Markdown>{c.message}</Markdown>
       <div className="space-y-3">
-        {(c.methods || []).map((m) => {
-          const url = safeUrl(m.url);
-          return (
-            <div key={m.id} className={cx('rounded-2xl p-4', theme.chip)}>
-              <div className="font-semibold">{m.label}</div>
-              {m.description && <p className={cx('mt-0.5 text-sm', theme.muted)}>{m.description}</p>}
-              {m.details && (
-                <div className="mt-3 flex items-start justify-between gap-3">
-                  <pre className="whitespace-pre-wrap break-all font-mono text-sm">{m.details}</pre>
-                  <button type="button" onClick={() => copy(m.id, m.details!)} className="shrink-0 rounded-lg p-2 hover:bg-black/5" aria-label="Copy details">
-                    {copied === m.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              )}
-              {url && (
-                <a href={url} target="_blank" rel="noopener noreferrer" className={cx(primaryBtn, 'mt-3')}>
-                  Give with {m.label} <ExternalLink className="h-4 w-4" />
-                </a>
-              )}
-            </div>
-          );
-        })}
+        {(c.methods || []).map((m) => (
+          <BankTransferCard key={m.id} m={m} theme={theme} copied={copied} onCopy={copy} />
+        ))}
       </div>
     </Shell>
   );
