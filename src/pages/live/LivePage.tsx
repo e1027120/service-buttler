@@ -119,6 +119,7 @@ export default function LivePage() {
     if (!data) return;
     document.title = primary ? `${primary.title} · ${data.church.name}` : data.church.name;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', data.church.primary_color);
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', data.church.name);
   }, [data, primary]);
 
   if (status === 'loading') {
