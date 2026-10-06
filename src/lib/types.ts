@@ -69,7 +69,21 @@ export interface ServiceTime {
 }
 
 // ---- Action content per type ----------------------------------------------
+export interface AnnouncementSlide {
+  id: string;
+  title?: string;
+  body?: string; // markdown
+  image_url?: string;
+  cta_label?: string;
+  cta_url?: string;
+}
+
 export interface AnnouncementContent {
+  // Slideshow support (each slide has its own image, text, and CTA)
+  slides?: AnnouncementSlide[];
+  auto_advance_seconds?: number;
+
+  // Single-slide legacy fields (kept for backwards compatibility)
   body?: string; // markdown
   image_url?: string;
   cta_label?: string;

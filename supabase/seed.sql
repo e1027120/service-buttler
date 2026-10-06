@@ -64,16 +64,40 @@ begin
   -- Clean previous sample actions for clean idempotency
   delete from public.actions where church_id = v_church;
 
-  -- 1. Pre-service Announcement (-15m to +5m)
+  -- 1. Pre-service Announcement (-15m to +5m) (Slideshow demonstration)
   insert into public.actions (church_id, service_id, type, title, start_offset_minutes, end_offset_minutes, priority, content)
   values (
     v_church, v_service, 'announcement',
-    'Welcome & Baptism Sunday',
+    'Sunday Announcements',
     -15, 5, 10,
     jsonb_build_object(
-      'body', 'Welcome! We are celebrating baptisms next Sunday at the beach. If you are interested in taking this step of faith, tap below to sign up.',
-      'cta_label', 'Sign up for Baptism',
-      'cta_url', 'https://example.com/baptism'
+      'auto_advance_seconds', 6,
+      'slides', jsonb_build_array(
+        jsonb_build_object(
+          'id', 'slide-1',
+          'title', 'Welcome & Baptism Sunday',
+          'body', E'We are excited you are here today! We are celebrating **baptisms** next Sunday at the beach.\n\nIf you want to take this step of faith, sign up below.',
+          'image_url', 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1200&q=80',
+          'cta_label', 'Sign up for Baptism',
+          'cta_url', 'https://example.com/baptism'
+        ),
+        jsonb_build_object(
+          'id', 'slide-2',
+          'title', 'New Members Gathering',
+          'body', E'Join us this Wednesday at 19:00 in the Fellowship Hall for coffee, dessert, and our newcomer orientation.\n\nMeet the pastors and learn how to get plugged in.',
+          'image_url', 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+          'cta_label', 'RSVP for Dinner',
+          'cta_url', 'https://example.com/newcomers'
+        ),
+        jsonb_build_object(
+          'id', 'slide-3',
+          'title', 'Youth Camp Registration',
+          'body', E'Summer Youth Camp early bird registration is now open! Grades 6–12.\n\nSpaces are limited, reserve your spot today.',
+          'image_url', 'https://images.unsplash.com/photo-1478147427282-58a87a120781?auto=format&fit=crop&w=1200&q=80',
+          'cta_label', 'Register for Camp',
+          'cta_url', 'https://example.com/camp'
+        )
+      )
     )
   );
 

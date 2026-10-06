@@ -1,4 +1,4 @@
-import { Check, Copy, ExternalLink, Heart, Send, Share2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Send, Share2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
 import { cx } from '../../components/ui';
@@ -84,16 +84,106 @@ function Title({ children, eyebrow, theme }: { children: React.ReactNode; eyebro
 
 // ---------------------------------------------------------------------------
 function Announcement({ title, c, theme }: { title: string; c: AnnouncementContent; theme: ThemeTokens }) {
-  const url = safeUrl(c.cta_url);
+  const slides =
+    c.slides && c.slides.length > 0
+      ? c.slides
+      : [
+          {
+            id: 'legacy',
+            title: '',
+            body: c.body,
+            image_url: c.image_url,
+            cta_label: c.cta_label,
+            cta_url: c.cta_url,
+          },
+        ];
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Auto-advance if configured (> 0) and multiple slides exist
+  useEffect(() => {
+    if (!c.auto_advance_seconds || c.auto_advance_seconds <= 0 || slides.length <= 1) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % slides.length);
+    }, c.auto_advance_seconds * 1000);
+    return () => clearInterval(timer);
+  }, [c.auto_advance_seconds, slides.length]);
+
+  // Keep index within bounds if slides count changes
+  const activeSlide = slides[Math.min(currentIndex, slides.length - 1)] || slides[0];
+  const url = safeUrl(activeSlide.cta_url);
+  const isMultiSlide = slides.length > 1;
+
+  const prevSlide = () => {
+    setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
+  };
+
+  const nextSlide = () => {
+    setCurrentIndex((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
+  };
+
   return (
-    <Shell theme={theme} image={c.image_url}>
-      <Title theme={theme} eyebrow="Announcement">{title}</Title>
-      <Markdown>{c.body}</Markdown>
-      {url && (
-        <a href={url} target="_blank" rel="noopener noreferrer" className={primaryBtn}>
-          {c.cta_label || 'Learn more'} <ExternalLink className="h-4 w-4" />
-        </a>
-      )}
+    <Shell theme={theme} image={activeSlide.image_url}>
+      <div className="space-y-4">
+        {isMultiSlide && (
+          <div className="flex items-center justify-between border-b border-black/5 pb-2 dark:border-white/10">
+            <span className={cx('text-xs font-semibold uppercase tracking-wider', theme.muted)}>
+              Announcement · Slide {currentIndex + 1} of {slides.length}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={prevSlide}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-current transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20"
+                aria-label="Previous slide"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={nextSlide}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-current transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20"
+                aria-label="Next slide"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <Title theme={theme} eyebrow={!isMultiSlide ? 'Announcement' : undefined}>
+          {activeSlide.title || title}
+        </Title>
+
+        {activeSlide.body && <Markdown>{activeSlide.body}</Markdown>}
+
+        {url && (
+          <a href={url} target="_blank" rel="noopener noreferrer" className={primaryBtn}>
+            {activeSlide.cta_label || 'Learn more'} <ExternalLink className="h-4 w-4" />
+          </a>
+        )}
+
+        {isMultiSlide && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            {slides.map((s, idx) => (
+              <button
+                key={s.id || idx}
+                type="button"
+                onClick={() => setCurrentIndex(idx)}
+                className={cx(
+                  'h-2 rounded-full transition-all duration-300',
+                  idx === currentIndex
+                    ? 'w-6 bg-brand'
+                    : 'w-2 bg-black/20 hover:bg-black/40 dark:bg-white/30 dark:hover:bg-white/50'
+                )}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </Shell>
   );
 }
