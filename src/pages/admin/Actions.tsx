@@ -336,6 +336,7 @@ function ActionModal({
             value={form.content || {}}
             onChange={(c) => set({ content: c })}
             churchId={church.id}
+            church={church}
           />
         </div>
 

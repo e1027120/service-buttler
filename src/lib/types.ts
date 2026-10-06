@@ -10,6 +10,20 @@ export interface LandingLink {
   url: string;
 }
 
+export interface PlanningCenterConfig {
+  app_id?: string;
+  secret?: string;
+  church_center_subdomain?: string; // e.g. "gracecommunity" for gracecommunity.churchcenter.com
+}
+
+export interface PlanningCenterItem {
+  id: string;
+  type: 'form' | 'signup' | 'event';
+  title: string;
+  description?: string;
+  url: string;
+}
+
 export interface LandingConfig {
   welcome_title?: string;
   welcome_message?: string;
@@ -21,6 +35,7 @@ export interface LandingConfig {
   idle_message?: string;
   footer_text?: string;
   links?: LandingLink[];
+  planning_center?: PlanningCenterConfig;
 }
 
 export interface Church {

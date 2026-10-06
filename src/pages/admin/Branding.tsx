@@ -139,6 +139,82 @@ export default function Branding() {
             </Field>
           </section>
 
+          <section className="card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Planning Center Online (PCO)</h2>
+                <p className="text-xs text-slate-500">
+                  Connect your Planning Center account to easily select signup forms and events in your announcement CTAs.
+                </p>
+              </div>
+            </div>
+
+            <Field
+              label="Church Center Subdomain"
+              hint="e.g. 'grace' for grace.churchcenter.com"
+            >
+              <div className="flex items-center">
+                <span className="rounded-l-lg border border-r-0 border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                  https://
+                </span>
+                <Input
+                  value={landing.planning_center?.church_center_subdomain || ''}
+                  onChange={(e) =>
+                    setL({
+                      planning_center: {
+                        ...(landing.planning_center || {}),
+                        church_center_subdomain: e.target.value.trim().toLowerCase(),
+                      },
+                    })
+                  }
+                  placeholder="yourchurch"
+                  className="rounded-none"
+                />
+                <span className="rounded-r-lg border border-l-0 border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                  .churchcenter.com
+                </span>
+              </div>
+            </Field>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Application ID (Personal Access Token)"
+                hint="Created at api.planningcenteronline.com"
+              >
+                <Input
+                  value={landing.planning_center?.app_id || ''}
+                  onChange={(e) =>
+                    setL({
+                      planning_center: {
+                        ...(landing.planning_center || {}),
+                        app_id: e.target.value.trim(),
+                      },
+                    })
+                  }
+                  placeholder="e.g. 5a1b2c3d4e..."
+                />
+              </Field>
+              <Field
+                label="Secret"
+                hint="Personal Access Token secret"
+              >
+                <Input
+                  type="password"
+                  value={landing.planning_center?.secret || ''}
+                  onChange={(e) =>
+                    setL({
+                      planning_center: {
+                        ...(landing.planning_center || {}),
+                        secret: e.target.value.trim(),
+                      },
+                    })
+                  }
+                  placeholder="••••••••••••••••"
+                />
+              </Field>
+            </div>
+          </section>
+
           <div className="flex justify-end">
             <Button type="submit" loading={busy} disabled={!canAdmin}>
               Save changes

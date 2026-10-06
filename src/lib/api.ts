@@ -110,3 +110,16 @@ export function getVoterToken(): string {
   }
   return token;
 }
+
+export async function fetchPlanningCenterForms(config: { app_id?: string; secret?: string; subdomain?: string }) {
+  const res = await fetch('/api/pco/forms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to load Planning Center forms');
+  }
+  return res.json() as Promise<{ items: import('./types').PlanningCenterItem[]; count: number }>;
+}
