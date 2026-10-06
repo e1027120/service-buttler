@@ -2,7 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { type ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { PageLoader } from '../components/ui';
-import { supabase } from './supabase';
+import { initRuntimeConfig, supabase } from './supabase';
 
 interface AuthState {
   session: Session | null;
@@ -18,12 +18,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
+    let active = true;
+
+    async function init() {
+      // Check if credentials need hydration from /api/config
+      await initRuntimeConfig();
+
+      if (!active) return;
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (active) setSession(data.session);
+      } catch (err) {
+        console.warn('Error fetching session:', err);
+      } finally {
+        if (active) setLoading(false);
+      }
+
+      const { data } = supabase.auth.onAuthStateChange((_event, s) => {
+        if (active) setSession(s);
+      });
+
+      return () => {
+        data.subscription.unsubscribe();
+      };
+    }
+
+    const cleanupPromise = init();
+    return () => {
+      active = false;
+      cleanupPromise.then((clean) => clean && clean());
+    };
   }, []);
 
   return (

@@ -1,17 +1,35 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+let url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
+let anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
 
-export const isSupabaseConfigured = Boolean(url && anonKey);
+export let isSupabaseConfigured = Boolean(url && anonKey);
 
-if (!isSupabaseConfigured) {
-  console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Copy .env.example to .env and fill them in.');
-}
-
-export const supabase = createClient(url || 'http://localhost:54321', anonKey || 'missing-anon-key', {
+export let supabase = createClient(url || 'http://localhost:54321', anonKey || 'missing-anon-key', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
+
+// If Vite build-time env vars are missing, fetch them at runtime from the Cloudflare edge worker (/api/config)
+export async function initRuntimeConfig(): Promise<boolean> {
+  if (isSupabaseConfigured) return true;
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data.supabaseUrl && data.supabaseAnonKey) {
+      url = data.supabaseUrl;
+      anonKey = data.supabaseAnonKey;
+      isSupabaseConfigured = true;
+      supabase = createClient(url, anonKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      });
+      return true;
+    }
+  } catch (e) {
+    console.warn('Failed to fetch runtime config from /api/config', e);
+  }
+  return false;
+}
 
 /** Throws on Supabase errors so callers can use try/catch uniformly. */
 export function unwrap<T>(res: { data: T | null; error: { message: string } | null }): T {

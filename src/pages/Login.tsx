@@ -1,9 +1,9 @@
 import { ArrowRight, Church as ChurchIcon } from 'lucide-react';
-import { type ChangeEvent, type FormEvent, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Field, Input, useToast } from '../components/ui';
 import { useAuth } from '../lib/auth';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { initRuntimeConfig, isSupabaseConfigured, supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/utils';
 
 export default function Login() {
@@ -19,6 +19,13 @@ export default function Login() {
   const [fullName, setFullName] = useState('');
   const [busy, setBusy] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
+  const [configured, setConfigured] = useState(isSupabaseConfigured);
+
+  useEffect(() => {
+    if (!configured) {
+      initRuntimeConfig().then((ok) => setConfigured(ok));
+    }
+  }, [configured]);
 
   if (user) {
     navigate(next, { replace: true });
@@ -27,8 +34,8 @@ export default function Login() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured) {
-      toast('Supabase credentials not configured in .env', 'error');
+    if (!configured && !isSupabaseConfigured) {
+      toast('Supabase credentials not configured', 'error');
       return;
     }
     setBusy(true);
@@ -76,7 +83,7 @@ export default function Login() {
           <p className="mt-1 text-sm text-slate-500">Sign in to manage your church services and live actions.</p>
         </div>
 
-        {!isSupabaseConfigured && (
+        {!configured && !isSupabaseConfigured && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <strong>Supabase credentials not configured.</strong> Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in your <code>.env</code> file.
           </div>
