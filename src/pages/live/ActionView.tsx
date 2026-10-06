@@ -1,4 +1,4 @@
-import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Send, Share2 } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Info, Send, Share2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
 import { cx } from '../../components/ui';
@@ -528,7 +528,26 @@ function SermonNotes({
             <label htmlFor={`notes-${id}`} className="text-sm font-bold">
               My Personal Notes
             </label>
-            <span className={cx('text-xs', theme.muted)}>Saved locally</span>
+            <div className="group relative flex items-center">
+              <button
+                type="button"
+                className={cx(
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium cursor-help transition',
+                  theme.chip
+                )}
+                title="Your notes are stored in this browser's local storage and only accessible from this device."
+              >
+                <span>Saved locally</span>
+                <Info className="h-3 w-3 opacity-70" />
+              </button>
+              {/* Tooltip popover on hover/focus */}
+              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-64 rounded-xl border border-slate-200 bg-white p-2.5 text-[11px] text-slate-600 shadow-xl group-hover:block group-focus-within:block animate-fade-in">
+                <p className="font-semibold text-slate-900 mb-0.5">Stored on this device only</p>
+                <p className="leading-snug">
+                  Notes are kept in your current browser’s local storage. They remain saved as long as you use this device and browser, without needing an account.
+                </p>
+              </div>
+            </div>
           </div>
           <textarea
             id={`notes-${id}`}

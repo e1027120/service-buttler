@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { cx } from '../../components/ui';
 import {
   clearAllSavedSermonNotes,
   deleteSavedSermonNote,
@@ -307,28 +308,78 @@ export function NotesHistoryModal({
                     </div>
                   </div>
 
-                  {/* Notes Content */}
-                  <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-700 leading-relaxed font-sans">
-                    <p className={isExpanded ? 'whitespace-pre-wrap' : 'line-clamp-3 whitespace-pre-wrap'}>
-                      {note.notes || <span className="italic text-slate-400">No personal text written.</span>}
-                    </p>
-                    {note.notes && note.notes.length > 150 && (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(isExpanded ? null : note.actionId)}
-                        className="mt-2 inline-flex items-center gap-0.5 text-[11px] font-semibold text-brand hover:underline"
-                      >
-                        {isExpanded ? (
-                          <>
-                            Show less <ChevronUp className="h-3 w-3" />
-                          </>
-                        ) : (
-                          <>
-                            Read full note <ChevronDown className="h-3 w-3" />
-                          </>
-                        )}
-                      </button>
+                  {/* Notes & Sermon Content */}
+                  <div className="space-y-2">
+                    {note.fullSermonText && (
+                      <div className="flex items-center gap-1 border-b border-slate-100 pb-1 text-[11px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(isExpanded ? null : note.actionId)}
+                          className={cx(
+                            'rounded-md px-2 py-0.5 transition',
+                            !isExpanded ? 'bg-slate-100 text-slate-700 font-bold' : 'text-slate-400 hover:text-slate-600'
+                          )}
+                        >
+                          Personal Notes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(isExpanded ? null : note.actionId)}
+                          className={cx(
+                            'rounded-md px-2 py-0.5 transition',
+                            isExpanded ? 'bg-brand/10 text-brand font-bold' : 'text-slate-400 hover:text-slate-600'
+                          )}
+                        >
+                          Full Sermon Body & Slides
+                        </button>
+                      </div>
                     )}
+
+                    {/* Display text */}
+                    <div className="max-h-60 overflow-y-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-700 leading-relaxed font-sans border border-slate-100">
+                      {isExpanded && note.fullSermonText ? (
+                        <div className="space-y-2 whitespace-pre-wrap text-slate-800">
+                          <p className="font-semibold text-slate-900 border-b border-slate-200 pb-1 text-[11px] uppercase tracking-wide">
+                            Sermon Outline & Notes
+                          </p>
+                          <p>{note.fullSermonText}</p>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap">
+                          {note.notes ? (
+                            note.notes
+                          ) : (
+                            <span className="italic text-slate-400">No personal text written.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      {note.fullSermonText ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(isExpanded ? null : note.actionId)}
+                          className="inline-flex items-center gap-1 font-semibold text-brand hover:underline"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="h-3 w-3" /> Show my personal notes
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3" /> View full sermon outline & slides
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">Personal notes only</span>
+                      )}
+
+                      <span className="text-slate-400">
+                        {note.notes ? `${note.notes.trim().split(/\s+/).filter(Boolean).length} words` : '0 words'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
