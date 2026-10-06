@@ -1,77 +1,58 @@
+import QRCode from 'qrcode';
+
 /**
- * Creates a minimal, clean, valid PDF containing a QR code image and title.
- * Used for importing directly into banking apps (e.g., George, Bank Austria) via file upload / Scan & Pay.
+ * Creates a crystal-clear, 100% vector PDF containing the SEPA EPC QR code.
+ * Directly outputs vector rectangles (`re f`), completely immune to PNG compression artifacts,
+ * color space issues, or raster scaling problems in banking apps.
  */
-export function createQrPdfBlob(pngDataUrl: string, title: string = 'SEPA Banking QR Code'): Blob {
-  // Convert Data URL to binary Uint8Array
-  const base64 = pngDataUrl.split(',')[1];
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const pngBytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    pngBytes[i] = binaryString.charCodeAt(i);
-  }
+export function createQrPdfBlob(qrText: string, title: string = 'SEPA Banking QR Code'): Blob {
+  // Generate QR matrix using QRCode.create
+  const qr = QRCode.create(qrText, { errorCorrectionLevel: 'M' });
+  const modCount = qr.modules.size;
+  const modData = qr.modules.data;
 
-  // Parse width & height from PNG IHDR (bytes 16..23)
-  const view = new DataView(pngBytes.buffer, pngBytes.byteOffset, pngBytes.byteLength);
-  const imgWidth = view.getUint32(16, false);
-  const imgHeight = view.getUint32(20, false);
+  // PDF Page Size: 420 x 520 points (~A5 portrait)
+  const pageWidth = 420;
+  const pageHeight = 520;
+  const qrBoxSize = 280;
+  const qrX = (pageWidth - qrBoxSize) / 2;
+  const qrY = 120; // Y distance from bottom in PDF coordinates
+  const cellSize = qrBoxSize / modCount;
 
-  // Extract IDAT chunks
-  let pos = 8;
-  const idatParts: Uint8Array[] = [];
-  let totalIdatLen = 0;
-
-  while (pos < pngBytes.length) {
-    const chunkLen = view.getUint32(pos, false);
-    const chunkType = String.fromCharCode(
-      pngBytes[pos + 4],
-      pngBytes[pos + 5],
-      pngBytes[pos + 6],
-      pngBytes[pos + 7]
-    );
-
-    if (chunkType === 'IDAT') {
-      const part = pngBytes.subarray(pos + 8, pos + 8 + chunkLen);
-      idatParts.push(part);
-      totalIdatLen += chunkLen;
+  // Build PDF path operations for each dark module
+  let pathOps = '0 g\n'; // Set fill color to black (0 gray)
+  for (let r = 0; r < modCount; r++) {
+    for (let c = 0; c < modCount; c++) {
+      if (modData[r * modCount + c]) {
+        // In PDF coordinates, Y=0 is bottom
+        // Row 0 of QR code is top
+        const x = (qrX + c * cellSize).toFixed(2);
+        const y = (qrY + (modCount - 1 - r) * cellSize).toFixed(2);
+        // Small 0.05 overlap prevents anti-aliasing hairline gaps between modules
+        const w = (cellSize + 0.05).toFixed(2);
+        const h = (cellSize + 0.05).toFixed(2);
+        pathOps += `${x} ${y} ${w} ${h} re\n`;
+      }
     }
-    pos += 12 + chunkLen;
   }
+  pathOps += 'f\n'; // Fill all rectangles
 
-  const idatCombined = new Uint8Array(totalIdatLen);
-  let idatOffset = 0;
-  for (const part of idatParts) {
-    idatCombined.set(part, idatOffset);
-    idatOffset += part.length;
-  }
-
-  // PDF Page Size: 400 x 480 points
-  const pageWidth = 400;
-  const pageHeight = 480;
-  const imgSize = 280;
-  const imgX = (pageWidth - imgSize) / 2;
-  const imgY = 110;
-
-  // Escape PDF string
-  const cleanTitle = title.replace(/[()\\]/g, '');
+  // Clean title for standard PDF string
+  const cleanTitle = title.replace(/[()\\\r\n]/g, ' ').slice(0, 80);
 
   const contentStreamStr =
     'BT\n' +
-    '/F1 16 Tf\n' +
-    `1 0 0 1 ${imgX} 430 Tm\n` +
+    '/F1 15 Tf\n' +
+    `1 0 0 1 50 460 Tm\n` +
     `(${cleanTitle}) Tj\n` +
     '/F1 10 Tf\n' +
-    `1 0 0 1 ${imgX} 412 Tm\n` +
+    `1 0 0 1 50 440 Tm\n` +
     '(SEPA Credit Transfer / EPC QR Code) Tj\n' +
     'ET\n' +
-    'q\n' +
-    `${imgSize} 0 0 ${imgSize} ${imgX} ${imgY} cm\n` +
-    '/Im1 Do\n' +
-    'Q\n' +
+    pathOps +
     'BT\n' +
     '/F1 9 Tf\n' +
-    `1 0 0 1 ${imgX} 80 Tm\n` +
+    `1 0 0 1 50 80 Tm\n` +
     '(Upload this PDF in your banking app under Scan & Pay / File Upload) Tj\n' +
     'ET\n';
 
@@ -94,7 +75,7 @@ export function createQrPdfBlob(pngDataUrl: string, title: string = 'SEPA Bankin
   // 3: Page
   addObj(
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
-      '/Contents 4 0 R /Resources << /Font << /F1 6 0 R >> /XObject << /Im1 5 0 R >> >> >>'
+      '/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>'
   );
   // 4: Contents
   addObj(
@@ -104,22 +85,11 @@ export function createQrPdfBlob(pngDataUrl: string, title: string = 'SEPA Bankin
       encoder.encode('\nendstream'),
     ])
   );
+  // 5: Font Helvetica
+  addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
 
-  // 5: Image XObject (FlateDecode uses standard PNG IDAT deflate stream)
-  const imgHeader = encoder.encode(
-    `<< /Type /XObject /Subtype /Image /Width ${imgWidth} /Height ${imgHeight} ` +
-      '/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode ' +
-      `/DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent 8 /Columns ${imgWidth} >> ` +
-      `/Length ${idatCombined.length} >>\nstream\n`
-  );
-  const imgFooter = encoder.encode('\nendstream');
-  addObj(concatBuffers([imgHeader, idatCombined, imgFooter]));
-
-  // 6: Base14 Standard Font: Helvetica
-  addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-
-  // Build PDF document with xref table
-  let pdfHead = '%PDF-1.4\n%\xFF\xFF\xFF\xFF\n';
+  // Build document with xref table
+  const pdfHead = '%PDF-1.4\n%\xFF\xFF\xFF\xFF\n';
   const headBytes = encoder.encode(pdfHead);
   const parts: Uint8Array[] = [headBytes];
   let curOffset = headBytes.length;

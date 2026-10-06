@@ -684,6 +684,7 @@ function BankTransferCard({
 }) {
   const [showQr, setShowQr] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [epcText, setEpcText] = useState<string>('');
 
   const cleanIban = (m.iban || '').replace(/\s+/g, '').toUpperCase();
   const hasIban = Boolean(cleanIban);
@@ -693,7 +694,7 @@ function BankTransferCard({
     if (!hasIban || !m.account_holder) return;
 
     // Standard EPC QR payload
-    const epcPayload = [
+    const payload = [
       'BCD', // Service Tag
       '002', // Version
       '1', // Character set: UTF-8
@@ -707,21 +708,23 @@ function BankTransferCard({
       m.reference ? m.reference.trim().slice(0, 140) : 'Offering', // Unstructured Remittance Info
     ].join('\n');
 
-    QRCode.toDataURL(epcPayload, {
+    setEpcText(payload);
+
+    QRCode.toDataURL(payload, {
       errorCorrectionLevel: 'M',
       margin: 2,
-      width: 240,
-      color: { dark: '#0f172a', light: '#ffffff' },
+      width: 280,
+      color: { dark: '#000000', light: '#ffffff' },
     })
       .then((url) => setQrDataUrl(url))
       .catch((err) => console.warn('QR code generation error:', err));
   }, [hasIban, cleanIban, m.account_holder, m.bic, m.reference]);
 
-  // Function to download clean QR code PDF
+  // Function to download clean vector QR code PDF
   const downloadQrPdf = () => {
-    if (!qrDataUrl) return;
+    if (!epcText) return;
     try {
-      const blob = createQrPdfBlob(qrDataUrl, `${m.account_holder || m.label} - Offering QR`);
+      const blob = createQrPdfBlob(epcText, `${m.account_holder || m.label} - Offering QR`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
