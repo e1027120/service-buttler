@@ -15,6 +15,7 @@ import type {
   SermonNotesContent,
   SermonSlide,
 } from '../../lib/types';
+import { saveSermonNote } from '../../lib/notes';
 import { errorMessage } from '../../lib/utils';
 
 export interface ThemeTokens {
@@ -31,15 +32,28 @@ interface Props {
   theme: ThemeTokens;
   /** In admin previews, interactive submissions are disabled */
   preview?: boolean;
+  churchSlug?: string;
+  churchName?: string;
+  serviceName?: string;
 }
 
-export function ActionView({ action, theme, preview }: Props) {
+export function ActionView({ action, theme, preview, churchSlug, churchName, serviceName }: Props) {
   const c = action.content as Record<string, unknown>;
   switch (action.type) {
     case 'announcement':
       return <Announcement title={action.title} c={c as AnnouncementContent} theme={theme} />;
     case 'sermon_notes':
-      return <SermonNotes id={action.id} title={action.title} c={c as SermonNotesContent} theme={theme} />;
+      return (
+        <SermonNotes
+          id={action.id}
+          title={action.title}
+          c={c as SermonNotesContent}
+          theme={theme}
+          churchSlug={churchSlug}
+          churchName={churchName}
+          serviceName={serviceName}
+        />
+      );
     case 'poll':
       return <Poll id={action.id} title={action.title} c={c as PollContent} theme={theme} preview={preview} />;
     case 'offering':
@@ -390,15 +404,26 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
 }
 
 // ---------------------------------------------------------------------------
-function SermonNotes({ id, title, c, theme }: { id: string; title: string; c: SermonNotesContent; theme: ThemeTokens }) {
+function SermonNotes({
+  id,
+  title,
+  c,
+  theme,
+  churchSlug,
+  churchName,
+  serviceName,
+}: {
+  id: string;
+  title: string;
+  c: SermonNotesContent;
+  theme: ThemeTokens;
+  churchSlug?: string;
+  churchName?: string;
+  serviceName?: string;
+}) {
   const key = `sb_notes:${id}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(key) || '');
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => localStorage.setItem(key, notes), 300);
-    return () => clearTimeout(t);
-  }, [key, notes]);
 
   const mainVerse = c.main_verse || c.scripture;
   const slides = c.slides && c.slides.length > 0 ? c.slides : null;
@@ -428,6 +453,21 @@ function SermonNotes({ id, title, c, theme }: { id: string; title: string; c: Se
   ]
     .filter((x) => x !== undefined)
     .join('\n');
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      saveSermonNote(id, notes, {
+        churchSlug,
+        churchName,
+        serviceName,
+        title,
+        speaker: c.speaker,
+        mainVerse,
+        fullSermonText: fullText,
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [id, notes, churchSlug, churchName, serviceName, title, c.speaker, mainVerse, fullText]);
 
   const share = async () => {
     if (navigator.share) {

@@ -1,4 +1,4 @@
-import { CalendarClock, Radio, WifiOff } from 'lucide-react';
+import { BookOpen, CalendarClock, Radio, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Markdown } from '../../components/Markdown';
@@ -7,6 +7,7 @@ import { fetchLivePage } from '../../lib/api';
 import type { LivePage as LivePageData } from '../../lib/types';
 import { brandStyle, formatInZone } from '../../lib/utils';
 import { ActionView, type ThemeTokens } from './ActionView';
+import { NotesHistoryModal } from './NotesHistoryModal';
 
 export const THEMES: Record<'light' | 'dark' | 'brand', ThemeTokens> = {
   light: {
@@ -47,6 +48,7 @@ export default function LivePage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'notfound' | 'error'>('loading');
   const [offline, setOffline] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback(async () => {
@@ -163,11 +165,26 @@ export default function LivePage() {
               )}
             </div>
           </div>
-          {data!.live && (
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-500 px-2.5 py-1 text-xs font-semibold text-white">
-              <Radio className="h-3 w-3 animate-pulse" /> LIVE
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setNotesModalOpen(true)}
+              className={cx(
+                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm transition active:scale-95',
+                landing.theme === 'brand' ? 'bg-white/15 text-white hover:bg-white/25' : theme.chip
+              )}
+              title="Search and view your saved sermon notes"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>My Notes</span>
+            </button>
+
+            {data!.live && (
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-500 px-2.5 py-1 text-xs font-semibold text-white">
+                <Radio className="h-3 w-3 animate-pulse" /> LIVE
+              </span>
+            )}
+          </div>
         </header>
 
         {offline && (
@@ -203,12 +220,26 @@ export default function LivePage() {
         <main className="flex-1">
           {primary ? (
             <div key={primary.id} className="animate-fade-up">
-              <ActionView action={primary} theme={theme} preview={Boolean(previewAt)} />
+              <ActionView
+                action={primary}
+                theme={theme}
+                preview={Boolean(previewAt)}
+                churchSlug={church.slug}
+                churchName={church.name}
+                serviceName={data!.service?.name}
+              />
             </div>
           ) : (
             <Idle data={data!} theme={theme} />
           )}
         </main>
+
+        {/* Notes History & Search Modal */}
+        <NotesHistoryModal
+          open={notesModalOpen}
+          onClose={() => setNotesModalOpen(false)}
+          churchName={church.name}
+        />
 
         {/* Footer */}
         {(landing.links?.length || landing.footer_text) && (
