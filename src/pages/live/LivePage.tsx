@@ -65,9 +65,10 @@ export default function LivePage() {
     }
   }, [churchSlug, serviceSlug, previewAt]);
 
-  // Poll + re-fetch exactly when the current primary action's window ends
+  // Poll for live changes (disabled inside admin iframe preview)
   useEffect(() => {
     load();
+    if (isEmbedPreview) return;
     const id = setInterval(load, POLL_MS);
     const onVisible = () => document.visibilityState === 'visible' && load();
     document.addEventListener('visibilitychange', onVisible);
@@ -77,19 +78,25 @@ export default function LivePage() {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', load);
     };
-  }, [load]);
+  }, [load, isEmbedPreview]);
 
+  // Re-fetch when the earliest upcoming action window ends
   useEffect(() => {
     clearTimeout(timer.current);
-    const until = data?.actions
+    if (isEmbedPreview || previewAt) return;
+    const now = Date.now();
+    const futureExpirations = (data?.actions || [])
       .map((a) => (a.visible_until ? new Date(a.visible_until).getTime() : Infinity))
-      .reduce((a, b) => Math.min(a, b), Infinity);
-    if (until && Number.isFinite(until) && !previewAt) {
-      const ms = until - Date.now() + 1500;
-      if (ms > 0 && ms < POLL_MS) timer.current = setTimeout(load, ms);
+      .filter((t) => Number.isFinite(t) && t > now);
+    if (futureExpirations.length > 0) {
+      const nextExpiry = Math.min(...futureExpirations);
+      const ms = Math.max(2000, nextExpiry - now + 1500);
+      if (ms < POLL_MS) {
+        timer.current = setTimeout(load, ms);
+      }
     }
     return () => clearTimeout(timer.current);
-  }, [data, load, previewAt]);
+  }, [data, load, previewAt, isEmbedPreview]);
 
   const landing = data?.church.landing || {};
   const theme = THEMES[landing.theme || 'light'];

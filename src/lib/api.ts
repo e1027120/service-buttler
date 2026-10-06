@@ -3,8 +3,9 @@ import type { LivePage, PollResults } from './types';
 
 /**
  * Public API used by the attendee landing page.
- * Goes through the Cloudflare Worker (edge cached). Falls back to calling the
- * Supabase RPC directly if the Worker is unreachable (e.g. `vite` without wrangler).
+ * - In local dev: calls Supabase RPC directly for fast, zero-configuration development.
+ * - In production (Cloudflare Pages): calls the edge-cached Cloudflare Worker (/api/*)
+ *   with an automatic direct RPC fallback.
  */
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -27,6 +28,10 @@ export class ApiError extends Error {
 class WorkerUnavailable extends Error {}
 
 async function withFallback<T>(primary: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
+  // In Vite dev, use Supabase RPC directly to avoid ECONNREFUSED when Wrangler isn't running
+  if (import.meta.env.DEV) {
+    return fallback();
+  }
   try {
     return await primary();
   } catch (e) {
