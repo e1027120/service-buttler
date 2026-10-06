@@ -8,7 +8,7 @@ Built for zero-downtime, global high performance:
 - **Frontend & Admin**: React + TypeScript + Tailwind CSS (code-split, responsive mobile-first attendee view).
 - **Edge Backend**: Cloudflare Pages & Workers (Edge-cached API with 15s cache to handle simultaneous congregation traffic spikes without hitting DB limits).
 - **Database & Auth**: Supabase PostgreSQL with Row Level Security (RLS), atomic security-definer RPCs, Auth, and Storage.
-- **Automated CI/CD**: GitHub Actions pipeline deploys on every git push to `main` with automatic secret synchronization to Cloudflare Pages.
+- **Automated CI/CD**: Cloudflare Pages Git integration builds and deploys on every push to `main` (preview URLs for other branches).
 
 ---
 
@@ -106,37 +106,32 @@ The project is structured natively for Cloudflare Pages:
 - Edge API functions live in `./functions/api/*` and run on Cloudflare Workers edge nodes.
 - Route headers and security policies are configured in `public/_headers`.
 
-### Option A: Automatic CI/CD Pipeline via GitHub Actions (Recommended)
+### Option A: Automatic Deployment via Cloudflare Git Integration (Recommended)
 
-Every push to `main` will build, typecheck, and deploy automatically to Cloudflare Pages.
+Cloudflare Pages is connected directly to the GitHub repository. Every push to `main` builds and deploys production; every other branch / PR gets a preview URL.
 
-1. **Create the Pages Project in Cloudflare**:
-   - Log into Cloudflare Dashboard → **Workers & Pages** → **Create application** → **Pages**.
-   - Create a project named `service-buttler` (Direct Upload).
+1. **Connect the repository**:
+   - Cloudflare Dashboard → **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+   - Select the `service-buttler` repository.
 
-2. **Create a Cloudflare API Token**:
-   - Go to Cloudflare Profile → **API Tokens** → **Create Token**.
-   - Use the **Cloudflare Pages** template (Permissions: `Cloudflare Pages:Edit`, `Account:Read`).
+2. **Build settings**:
+   - Production branch: `main`
+   - Build command: `npm run build`
+   - Build output directory: `dist`
 
-3. **Set GitHub Repository Secrets**:
-   Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions** and add:
-   - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API token.
-   - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID (found on the right sidebar of Cloudflare Dashboard).
+3. **Secrets** (Project → **Settings** → **Variables and secrets**, type **Secret**):
    - `SUPABASE_URL`: `https://your-project-id.supabase.co`
    - `SUPABASE_ANON_KEY`: `eyJhbGciOi...`
-   - `PUBLIC_SITE_URL`: `https://service-buttler.pages.dev` (or your custom domain).
+
+   > Because this project has a `wrangler.toml`, the dashboard only allows *Secrets*, which are **not** visible during `npm run build`.
+   > That's fine: on startup the frontend fetches the public Supabase URL + anon key from the edge endpoint `/api/config`,
+   > which reads these secrets at runtime. No build-time variables are required.
 
 4. **Push to Git**:
    ```bash
-   git add .
-   git commit -m "feat: initial commit"
    git push origin main
    ```
-   The `.github/workflows/deploy.yml` workflow will automatically run:
-   - Typechecks frontend and Cloudflare Worker code (`npm run typecheck`).
-   - Builds the production bundle (`npm run build`).
-   - Deploys static assets + Edge Functions via Wrangler.
-   - Sets `SUPABASE_URL` and `SUPABASE_ANON_KEY` as production secrets in Cloudflare Pages.
+   Cloudflare builds the bundle, compiles the Edge Functions in `./functions`, and deploys to `https://service-buttler.pages.dev`.
 
 ---
 
@@ -177,11 +172,9 @@ All tables have **Row Level Security (RLS)** enabled:
 ## 📁 Repository Structure
 
 ```
-├── .github/
-│   └── workflows/
-│       └── deploy.yml            # Automated CI/CD pipeline
 ├── functions/
 │   ├── api/
+│   │   ├── config.ts             # Runtime public Supabase config (from Cloudflare secrets)
 │   │   ├── forms/[id]/submit.ts  # Edge form submission endpoint
 │   │   ├── live/[[path]].ts      # Edge-cached live page endpoint
 │   │   ├── polls/[id]/results.ts # Edge-cached live poll results

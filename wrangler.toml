@@ -6,4 +6,5 @@ compatibility_date = "2024-11-01"
 
 # Runtime variables for Pages Functions are NOT stored here.
 # - Local dev: they are read from .env (or .dev.vars)
-# - Production: the CI pipeline pushes them as Pages secrets (see .github/workflows/deploy.yml)
+# - Production: set SUPABASE_URL / SUPABASE_ANON_KEY as Secrets in the Cloudflare Pages dashboard.
+#   The frontend reads them at runtime via /api/config (functions/api/config.ts).
