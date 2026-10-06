@@ -1,10 +1,11 @@
-import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Info, QrCode, Send, Share2 } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Heart, Info, QrCode, Send, Share2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
 import { cx } from '../../components/ui';
 import { castVote, fetchPollResults, getVoterToken, submitForm } from '../../lib/api';
 import { fetchBibleVerse, type VerseResult } from '../../lib/bible';
+import { createQrPdfBlob } from '../../lib/pdf';
 import type {
   AnnouncementContent,
   FormContent,
@@ -716,7 +717,31 @@ function BankTransferCard({
       .catch((err) => console.warn('QR code generation error:', err));
   }, [hasIban, cleanIban, m.account_holder, m.bic, m.reference]);
 
-  // Banking app links (George / Erste Bank & Bank Austria MobileBanking)
+  // Function to download clean QR code PDF
+  const downloadQrPdf = () => {
+    if (!qrDataUrl) return;
+    try {
+      const blob = createQrPdfBlob(qrDataUrl, `${m.account_holder || m.label} - Offering QR`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sepa-qr-${cleanIban.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn('PDF download error:', err);
+    }
+  };
+
+  // Detect iOS vs Android for app store links
+  const isIos = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const georgeStoreUrl = isIos
+    ? 'https://apps.apple.com/at/app/george-%C3%B6sterreich/id1041695508'
+    : 'https://play.google.com/store/apps/details?id=at.erstebank.george';
+  const bankAustriaStoreUrl = isIos
+    ? 'https://apps.apple.com/at/app/bank-austria-mobilebanking/id425126662'
+    : 'https://play.google.com/store/apps/details?id=com.unicredit.mobilebanking.at';
+
   const isAustrianIban = cleanIban.startsWith('AT');
 
   return (
@@ -732,7 +757,7 @@ function BankTransferCard({
             type="button"
             onClick={() => setShowQr(!showQr)}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white"
-            title="Show SEPA QR Code to scan with banking app"
+            title="Show SEPA QR Code to scan or download for banking app"
           >
             <QrCode className="h-3.5 w-3.5 text-brand" />
             <span>{showQr ? 'Hide QR' : 'Banking QR'}</span>
@@ -742,12 +767,44 @@ function BankTransferCard({
 
       {/* SEPA / EPC QR Code Display */}
       {showQr && qrDataUrl && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-4 text-center shadow-inner animate-fade-in space-y-2">
-          <p className="text-xs font-semibold text-slate-800">Scan with your Banking App</p>
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-4 text-center shadow-inner animate-fade-in space-y-3">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold text-slate-900">SEPA Banking QR Code</p>
+            {/* Explanatory Info Tooltip */}
+            <div className="group relative flex items-center">
+              <button
+                type="button"
+                className="rounded-full text-slate-400 hover:text-slate-600 transition"
+                aria-label="How does this work?"
+              >
+                <Info className="h-3.5 w-3.5" />
+              </button>
+              <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full z-20 mb-2 hidden w-64 rounded-xl border border-slate-200 bg-white p-3 text-left text-[11px] text-slate-600 shadow-2xl group-hover:block group-focus-within:block animate-fade-in">
+                <p className="font-bold text-slate-900 mb-1">How to pay with your banking app:</p>
+                <ol className="list-decimal pl-3.5 space-y-1">
+                  <li>Download this QR code as a PDF to your phone.</li>
+                  <li>Open your banking app (George, Bank Austria, etc.).</li>
+                  <li>Tap <strong>Scan & Pay</strong> or <strong>QR Überweisung</strong>.</li>
+                  <li>Choose <strong>Upload File / PDF</strong> to import the downloaded PDF. All transfer details will be pre-filled automatically!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
           <img src={qrDataUrl} alt="SEPA QR Code" className="h-44 w-44 rounded-xl shadow-sm border border-slate-100" />
+
           <p className="text-[11px] text-slate-500 max-w-xs leading-tight">
-            Open George, Bank Austria MobileBanking, or any banking app and select <strong>Scan & Pay</strong>.
+            Scan directly with another phone, or download the PDF below to load into your banking app.
           </p>
+
+          <button
+            type="button"
+            onClick={downloadQrPdf}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 transition active:scale-95"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Download QR as PDF</span>
+          </button>
         </div>
       )}
 
@@ -825,19 +882,32 @@ function BankTransferCard({
         </div>
       )}
 
-      {/* Bank Quick Launcher (Erste Bank / George & Bank Austria) */}
+      {/* Bank App Links (Erste Bank / George & Bank Austria in App Store / Google Play) */}
       {hasIban && isAustrianIban && (
         <div className="pt-1 border-t border-slate-200/50 space-y-2">
-          <p className="text-[11px] font-semibold text-slate-600">Open your Banking App:</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold text-slate-600">Get your Banking App:</p>
+            <div className="group relative flex items-center">
+              <button
+                type="button"
+                className="inline-flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-slate-600 transition"
+              >
+                <span>How to transfer</span>
+                <Info className="h-3 w-3" />
+              </button>
+              <div className="pointer-events-none absolute right-0 bottom-full z-20 mb-2 hidden w-64 rounded-xl border border-slate-200 bg-white p-3 text-left text-[11px] text-slate-600 shadow-2xl group-hover:block group-focus-within:block animate-fade-in">
+                <p className="font-bold text-slate-900 mb-1">2 easy ways to transfer:</p>
+                <p className="mb-1"><strong>Option A:</strong> Tap &quot;Copy&quot; on the IBAN and recipient name above, then paste into your banking app.</p>
+                <p><strong>Option B:</strong> Tap &quot;Banking QR&quot;, download the PDF, and upload it via your app&apos;s <em>Scan &amp; Pay</em> function.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2 text-xs">
             <a
-              href="george://"
-              onClick={() => {
-                // Fallback to web George / app store if app scheme is not opened
-                setTimeout(() => {
-                  window.open('https://george.sparkasse.at', '_blank');
-                }, 1200);
-              }}
+              href={georgeStoreUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-1 rounded-xl bg-white p-2 font-semibold text-slate-800 shadow-sm border border-slate-200 hover:border-brand/40 transition active:scale-95 text-center"
             >
               <span>Erste (George)</span>
@@ -845,13 +915,9 @@ function BankTransferCard({
             </a>
 
             <a
-              href="bankaustria://"
-              onClick={() => {
-                // Fallback to Bank Austria portal if app scheme not installed
-                setTimeout(() => {
-                  window.open('https://www.bankaustria.at', '_blank');
-                }, 1200);
-              }}
+              href={bankAustriaStoreUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-1 rounded-xl bg-white p-2 font-semibold text-slate-800 shadow-sm border border-slate-200 hover:border-brand/40 transition active:scale-95 text-center"
             >
               <span>Bank Austria</span>
@@ -859,7 +925,7 @@ function BankTransferCard({
             </a>
           </div>
           <p className="text-[10px] text-slate-400 leading-tight">
-            Tap &quot;Copy&quot; on the IBAN above, or tap &quot;Banking QR&quot; to scan with your banking app.
+            Links open {isIos ? 'Apple App Store' : 'Google Play Store'} to install or launch the banking app.
           </p>
         </div>
       )}
