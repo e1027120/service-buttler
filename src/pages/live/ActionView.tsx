@@ -111,10 +111,9 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
     return () => clearInterval(timer);
   }, [c.auto_advance_seconds, slides.length]);
 
-  // Keep index within bounds if slides count changes
-  const activeSlide = slides[Math.min(currentIndex, slides.length - 1)] || slides[0];
-  const url = safeUrl(activeSlide.cta_url);
+  const activeIndex = Math.min(currentIndex, slides.length - 1);
   const isMultiSlide = slides.length > 1;
+  const anySlideHasImage = slides.some((s) => Boolean(s.image_url));
 
   const prevSlide = () => {
     setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
@@ -125,18 +124,43 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
   };
 
   return (
-    <Shell theme={theme} image={activeSlide.image_url}>
-      <div className="space-y-4">
+    <article className={cx('overflow-hidden rounded-3xl shadow-xl', theme.card)}>
+      {/* Cross-fading image header when any slide has an image */}
+      {anySlideHasImage && (
+        <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/5 dark:bg-white/5">
+          {slides.map((slide, idx) => (
+            <div
+              key={slide.id || idx}
+              className={cx(
+                'absolute inset-0 transition-opacity duration-700 ease-in-out',
+                idx === activeIndex ? 'opacity-100 z-10' : 'pointer-events-none opacity-0 z-0'
+              )}
+            >
+              {slide.image_url && (
+                <img
+                  src={slide.image_url}
+                  alt={slide.title || title}
+                  className="h-full w-full object-cover"
+                  loading={idx === 0 ? 'eager' : 'lazy'}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-5 p-6 sm:p-8">
+        {/* Carousel header controls */}
         {isMultiSlide && (
-          <div className="flex items-center justify-between border-b border-black/5 pb-2 dark:border-white/10">
+          <div className="flex items-center justify-between border-b border-black/5 pb-3 dark:border-white/10">
             <span className={cx('text-xs font-semibold uppercase tracking-wider', theme.muted)}>
-              Announcement · Slide {currentIndex + 1} of {slides.length}
+              Announcement · Slide {activeIndex + 1} of {slides.length}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={prevSlide}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-current transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-current transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20"
                 aria-label="Previous slide"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -144,7 +168,7 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
               <button
                 type="button"
                 onClick={nextSlide}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-current transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-black/5 text-current transition hover:bg-black/10 active:scale-95 dark:bg-white/10 dark:hover:bg-white/20"
                 aria-label="Next slide"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -153,18 +177,46 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
           </div>
         )}
 
-        <Title theme={theme} eyebrow={!isMultiSlide ? 'Announcement' : undefined}>
-          {activeSlide.title || title}
-        </Title>
+        {/* Cross-fading slide content stack */}
+        <div className="grid">
+          {slides.map((slide, idx) => {
+            const isActive = idx === activeIndex;
+            const url = safeUrl(slide.cta_url);
+            return (
+              <div
+                key={slide.id || idx}
+                style={{ gridArea: '1 / 1' }}
+                className={cx(
+                  'space-y-5 transition-all duration-500 ease-out',
+                  isActive
+                    ? 'opacity-100 translate-y-0 relative z-10'
+                    : 'pointer-events-none opacity-0 translate-y-2 absolute inset-0 z-0'
+                )}
+                aria-hidden={!isActive}
+              >
+                <Title theme={theme} eyebrow={!isMultiSlide ? 'Announcement' : undefined}>
+                  {slide.title || title}
+                </Title>
 
-        {activeSlide.body && <Markdown>{activeSlide.body}</Markdown>}
+                {slide.body && <Markdown>{slide.body}</Markdown>}
 
-        {url && (
-          <a href={url} target="_blank" rel="noopener noreferrer" className={primaryBtn}>
-            {activeSlide.cta_label || 'Learn more'} <ExternalLink className="h-4 w-4" />
-          </a>
-        )}
+                {url && (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={primaryBtn}
+                    tabIndex={isActive ? 0 : -1}
+                  >
+                    {slide.cta_label || 'Learn more'} <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
+        {/* Dots indicators */}
         {isMultiSlide && (
           <div className="flex items-center justify-center gap-2 pt-2">
             {slides.map((s, idx) => (
@@ -174,7 +226,7 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
                 onClick={() => setCurrentIndex(idx)}
                 className={cx(
                   'h-2 rounded-full transition-all duration-300',
-                  idx === currentIndex
+                  idx === activeIndex
                     ? 'w-6 bg-brand'
                     : 'w-2 bg-black/20 hover:bg-black/40 dark:bg-white/30 dark:hover:bg-white/50'
                 )}
@@ -184,7 +236,7 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
           </div>
         )}
       </div>
-    </Shell>
+    </article>
   );
 }
 

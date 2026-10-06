@@ -28,9 +28,10 @@ const variants: Record<Variant, string> = {
 export const Button = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean; size?: 'sm' | 'md' }
->(({ variant = 'primary', loading, size = 'md', className, children, disabled, ...rest }, ref) => (
+>(({ variant = 'primary', loading, size = 'md', type = 'button', className, children, disabled, ...rest }, ref) => (
   <button
     ref={ref}
+    type={type}
     disabled={disabled || loading}
     className={cx(
       'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60',

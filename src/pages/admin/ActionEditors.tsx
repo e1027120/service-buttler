@@ -223,7 +223,7 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
                   <option value={12}>Every 12 seconds</option>
                 </select>
               </label>
-              <Button size="sm" variant="secondary" onClick={addSlide} className="gap-1.5 text-xs">
+              <Button type="button" size="sm" variant="secondary" onClick={addSlide} className="gap-1.5 text-xs">
                 <Plus className="h-3.5 w-3.5" /> Add Slide
               </Button>
             </div>
@@ -244,6 +244,7 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
                   </span>
                   <div className="flex items-center gap-1">
                     <Button
+                      type="button"
                       size="sm"
                       variant="ghost"
                       onClick={() => moveSlide(idx, -1)}
@@ -254,6 +255,7 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
                       <ArrowUp className="h-3.5 w-3.5" />
                     </Button>
                     <Button
+                      type="button"
                       size="sm"
                       variant="ghost"
                       onClick={() => moveSlide(idx, 1)}
@@ -265,6 +267,7 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
                     </Button>
                     {slides.length > 1 && (
                       <Button
+                        type="button"
                         size="sm"
                         variant="ghost"
                         onClick={() => removeSlide(idx)}
@@ -324,7 +327,7 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
             ))}
           </div>
 
-          <Button variant="secondary" onClick={addSlide} className="w-full gap-2">
+          <Button type="button" variant="secondary" onClick={addSlide} className="w-full gap-2">
             <Plus className="h-4 w-4" /> Add another slide
           </Button>
         </div>
