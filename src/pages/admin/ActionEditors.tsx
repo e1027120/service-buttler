@@ -526,11 +526,11 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
                   </div>
 
                   <div className="space-y-4">
-                    <Field label="Point / Title" hint="e.g. 1. Present struggles are temporary">
+                    <Field label="Point / Title (optional)" hint="e.g. 1. Present struggles are temporary (leave blank for image-only slide)">
                       <Input
                         value={slide.title || ''}
                         onChange={(e) => updateSlide(idx, { title: e.target.value })}
-                        placeholder="e.g. 1. God is working behind what you cannot see"
+                        placeholder="e.g. 1. God is working behind what you cannot see (or leave blank)"
                       />
                     </Field>
 

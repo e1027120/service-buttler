@@ -313,69 +313,78 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
 // ---------------------------------------------------------------------------
 function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: number; theme: ThemeTokens }) {
   const hasBackground = Boolean(slide.image_url);
-  const hasExtraContent = Boolean(slide.verse_reference || slide.body);
+  const hasTitle = Boolean(slide.title?.trim());
+  const hasVerse = Boolean(slide.verse_reference?.trim());
+  const hasBody = Boolean(slide.body?.trim());
+  const hasAnyText = hasTitle || hasVerse || hasBody;
 
   return (
     <div
       className={cx(
         'relative overflow-hidden rounded-2xl border shadow-sm transition-all sm:rounded-3xl flex flex-col justify-end',
         hasBackground
-          ? 'border-transparent text-white min-h-[260px] sm:min-h-[320px] aspect-[16/10]'
+          ? 'border-transparent text-white min-h-[260px] sm:min-h-[360px] aspect-[16/10]'
           : cx('border-black/5 dark:border-white/10', theme.card)
       )}
     >
-      {/* Background Image with readable overlay */}
+      {/* Background / Slide Image */}
       {hasBackground && (
         <div className="absolute inset-0 z-0">
           <img
             src={slide.image_url}
-            alt={slide.title || ''}
+            alt={slide.title || `Slide ${index + 1}`}
             className="h-full w-full object-cover"
             loading="lazy"
           />
-          <div
-            className={cx(
-              'absolute inset-0',
-              hasExtraContent
-                ? 'bg-gradient-to-t from-slate-950/95 via-slate-950/80 to-slate-950/50 backdrop-blur-[1px]'
-                : 'bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent'
-            )}
-          />
+          {/* Only apply gradient overlay if there is text to keep readable */}
+          {hasAnyText && (
+            <div
+              className={cx(
+                'absolute inset-0',
+                hasVerse || hasBody
+                  ? 'bg-gradient-to-t from-slate-950/95 via-slate-950/80 to-slate-950/50 backdrop-blur-[1px]'
+                  : 'bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent'
+              )}
+            />
+          )}
         </div>
       )}
 
-      <div className="relative z-10 space-y-4 p-5 sm:p-7 w-full">
-        {/* Slide Point / Title */}
-        {slide.title && (
-          <div className="flex items-start gap-3">
-            <span
-              className={cx(
-                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
-                hasBackground
-                  ? 'bg-brand text-white'
-                  : 'bg-brand/10 text-brand'
-              )}
-            >
-              {index + 1}
-            </span>
-            <h3 className="text-lg font-bold leading-snug drop-shadow sm:text-xl">
-              {slide.title}
-            </h3>
-          </div>
-        )}
+      {/* Slide text content (only rendered if title, verse, or body exists) */}
+      {hasAnyText && (
+        <div className="relative z-10 space-y-4 p-5 sm:p-7 w-full">
+          {/* Slide Point / Title */}
+          {hasTitle && (
+            <div className="flex items-start gap-3">
+              <span
+                className={cx(
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
+                  hasBackground
+                    ? 'bg-brand text-white'
+                    : 'bg-brand/10 text-brand'
+                )}
+              >
+                {index + 1}
+              </span>
+              <h3 className="text-lg font-bold leading-snug drop-shadow sm:text-xl">
+                {slide.title}
+              </h3>
+            </div>
+          )}
 
-        {/* Bible Verse Reference Box */}
-        {slide.verse_reference && (
-          <BibleVerseBox reference={slide.verse_reference} theme={theme} />
-        )}
+          {/* Bible Verse Reference Box */}
+          {hasVerse && (
+            <BibleVerseBox reference={slide.verse_reference!} theme={theme} />
+          )}
 
-        {/* Explanatory notes / Markdown body */}
-        {slide.body && (
-          <div className={hasBackground ? 'text-slate-100 opacity-95 drop-shadow-sm' : undefined}>
-            <Markdown>{slide.body}</Markdown>
-          </div>
-        )}
-      </div>
+          {/* Explanatory notes / Markdown body */}
+          {hasBody && (
+            <div className={hasBackground ? 'text-slate-100 opacity-95 drop-shadow-sm' : undefined}>
+              <Markdown>{slide.body}</Markdown>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
