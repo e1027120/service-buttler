@@ -1,0 +1,9 @@
+#:schema node_modules/wrangler/config-schema.json
+# Cloudflare Pages project (static SPA in ./dist + Pages Functions in ./functions)
+name = "service-buttler"
+pages_build_output_dir = "./dist"
+compatibility_date = "2024-11-01"
+
+# Runtime variables for Pages Functions are NOT stored here.
+# - Local dev: they are read from .env (or .dev.vars)
+# - Production: the CI pipeline pushes them as Pages secrets (see .github/workflows/deploy.yml)
