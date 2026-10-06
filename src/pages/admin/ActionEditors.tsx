@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Plus, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button, Field, Input, Select, Textarea, Toggle } from '../../components/ui';
 import type {
@@ -11,6 +11,7 @@ import type {
   OfferingMethod,
   PollContent,
   SermonNotesContent,
+  SermonSlide,
 } from '../../lib/types';
 import { shortId } from '../../lib/utils';
 import { ImageInput } from './ImageInput';
@@ -34,7 +35,20 @@ export function defaultContent(type: ActionType): C {
         auto_advance_seconds: 0,
       } satisfies AnnouncementContent as C;
     case 'sermon_notes':
-      return { body: '## Main points\n\n1. \n2. \n3. ', allow_personal_notes: true } satisfies SermonNotesContent;
+      return {
+        speaker: '',
+        main_verse: '',
+        slides: [
+          {
+            id: shortId(),
+            title: '1. Present struggles are temporary',
+            verse_reference: 'Romans 8:18',
+            body: '* Real hope does not ignore pain, it anchors through it.\n* God is working behind what you cannot see.',
+            image_url: '',
+          },
+        ],
+        allow_personal_notes: true,
+      } satisfies SermonNotesContent as C;
     case 'poll':
       return {
         question: '',
@@ -101,6 +115,18 @@ export function validateContent(type: ActionType, c: C): string | null {
       if (!a.body?.trim() && !a.image_url) return 'Announcement needs a message or image';
     }
   }
+  if (type === 'sermon_notes') {
+    const s = c as SermonNotesContent;
+    const slides = s.slides && s.slides.length > 0 ? s.slides : null;
+    if (slides) {
+      const hasContent = slides.some(
+        (sl) => (sl.title && sl.title.trim()) || (sl.verse_reference && sl.verse_reference.trim()) || (sl.body && sl.body.trim()) || sl.image_url
+      );
+      if (!hasContent && !s.body?.trim()) return 'Sermon notes need at least one slide with a point, verse, or notes';
+    } else if (!s.body?.trim()) {
+      return 'Sermon notes need content or slides';
+    }
+  }
   if (type === 'poll') {
     const p = c as PollContent;
     const opts = (p.options || []).filter((o) => o.label.trim());
@@ -138,6 +164,32 @@ export function normalizeContent(type: ActionType, c: C): C {
       };
     }
     return c;
+  }
+  if (type === 'sermon_notes') {
+    const s = c as SermonNotesContent;
+    if (s.slides && s.slides.length > 0) {
+      const cleanedSlides = s.slides.map((sl) => ({
+        ...sl,
+        title: sl.title?.trim() || undefined,
+        verse_reference: sl.verse_reference?.trim() || undefined,
+        verse_text: sl.verse_text?.trim() || undefined,
+        body: sl.body?.trim() || undefined,
+        image_url: sl.image_url?.trim() || undefined,
+      }));
+      return {
+        ...s,
+        main_verse: (s.main_verse || s.scripture)?.trim() || undefined,
+        scripture: (s.main_verse || s.scripture)?.trim() || undefined,
+        speaker: s.speaker?.trim() || undefined,
+        slides: cleanedSlides,
+      };
+    }
+    return {
+      ...s,
+      main_verse: (s.main_verse || s.scripture)?.trim() || undefined,
+      scripture: (s.main_verse || s.scripture)?.trim() || undefined,
+      speaker: s.speaker?.trim() || undefined,
+    };
   }
   if (type === 'poll') {
     const p = c as PollContent;
@@ -335,25 +387,201 @@ export function ContentEditor({ type, value, onChange, churchId }: { type: Actio
     }
     case 'sermon_notes': {
       const v = value as SermonNotesContent;
+      const slides: SermonSlide[] =
+        v.slides && v.slides.length > 0
+          ? v.slides
+          : v.body
+          ? [
+              {
+                id: shortId(),
+                title: 'Message outline',
+                body: v.body,
+              },
+            ]
+          : [
+              {
+                id: shortId(),
+                title: '',
+                verse_reference: '',
+                body: '',
+                image_url: '',
+              },
+            ];
+
+      const updateSlide = (idx: number, patch: Partial<SermonSlide>) => {
+        const next = slides.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+        set({ slides: next });
+      };
+
+      const addSlide = () => {
+        set({
+          slides: [
+            ...slides,
+            {
+              id: shortId(),
+              title: '',
+              verse_reference: '',
+              body: '',
+              image_url: '',
+            },
+          ],
+        });
+      };
+
+      const removeSlide = (idx: number) => {
+        if (slides.length <= 1) return;
+        set({ slides: slides.filter((_, i) => i !== idx) });
+      };
+
+      const moveSlide = (idx: number, dir: -1 | 1) => {
+        const target = idx + dir;
+        if (target < 0 || target >= slides.length) return;
+        const next = [...slides];
+        const [moved] = next.splice(idx, 1);
+        next.splice(target, 0, moved);
+        set({ slides: next });
+      };
+
       return (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Speaker">
-              <Input value={v.speaker || ''} onChange={(e) => set({ speaker: e.target.value })} />
+              <Input
+                value={v.speaker || ''}
+                onChange={(e) => set({ speaker: e.target.value })}
+                placeholder="e.g. Pastor David Mitchell"
+              />
             </Field>
-            <Field label="Scripture">
-              <Input value={v.scripture || ''} onChange={(e) => set({ scripture: e.target.value })} placeholder="John 3:16-21" />
+            <Field label="Main Verse / Scripture" hint="Primary sermon passage, e.g. Romans 8:18–28">
+              <Input
+                value={v.main_verse || v.scripture || ''}
+                onChange={(e) => set({ main_verse: e.target.value, scripture: e.target.value })}
+                placeholder="Romans 8:18–28"
+              />
             </Field>
           </div>
-          <Field label="Outline / notes" hint="Markdown supported">
-            <Textarea rows={10} className="font-mono" value={v.body || ''} onChange={(e) => set({ body: e.target.value })} />
-          </Field>
-          <Toggle
-            checked={v.allow_personal_notes !== false}
-            onChange={(b) => set({ allow_personal_notes: b })}
-            label="Personal notes"
-            description="Let attendees type their own notes (stored on their device)."
-          />
+
+          <div className="border-t border-gray-100 pt-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Sermon Slides & Points ({slides.length})</h3>
+                <p className="text-xs text-gray-500">
+                  Slides appear vertically one under the other. Each slide can feature a title/point, scripture reference, notes, and a background image.
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={addSlide} className="gap-1.5 text-xs">
+                <Plus className="h-3.5 w-3.5" /> Add Slide
+              </Button>
+            </div>
+
+            <div className="space-y-5">
+              {slides.map((slide, idx) => (
+                <div
+                  key={slide.id || idx}
+                  className="relative rounded-2xl border border-gray-200 bg-gray-50/60 p-4 transition-all sm:p-5"
+                >
+                  <div className="mb-4 flex items-center justify-between border-b border-gray-200/80 pb-3">
+                    <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-700">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">
+                        {idx + 1}
+                      </span>
+                      Point / Slide {idx + 1} of {slides.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => moveSlide(idx, -1)}
+                        disabled={idx === 0}
+                        title="Move slide up"
+                        className="h-7 w-7 p-0"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => moveSlide(idx, 1)}
+                        disabled={idx === slides.length - 1}
+                        title="Move slide down"
+                        className="h-7 w-7 p-0"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                      {slides.length > 1 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeSlide(idx)}
+                          title="Delete slide"
+                          className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Field label="Point / Title" hint="e.g. 1. Present struggles are temporary">
+                      <Input
+                        value={slide.title || ''}
+                        onChange={(e) => updateSlide(idx, { title: e.target.value })}
+                        placeholder="e.g. 1. God is working behind what you cannot see"
+                      />
+                    </Field>
+
+                    <Field
+                      label="Bible Verse Reference (optional)"
+                      hint="Will automatically fetch and show the full verse text on the attendee's phone"
+                    >
+                      <div className="relative">
+                        <Input
+                          value={slide.verse_reference || ''}
+                          onChange={(e) => updateSlide(idx, { verse_reference: e.target.value })}
+                          placeholder="e.g. Romans 8:18 or John 3:16"
+                          className="pl-9"
+                        />
+                        <BookOpen className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      </div>
+                    </Field>
+
+                    <Field label="Notes / Explanation (optional)" hint="Markdown supported: bullet points, **bold**, etc.">
+                      <Textarea
+                        rows={3}
+                        value={slide.body || ''}
+                        onChange={(e) => updateSlide(idx, { body: e.target.value })}
+                        placeholder="Key takeaways, insights, questions..."
+                      />
+                    </Field>
+
+                    <ImageInput
+                      churchId={churchId}
+                      label="Slide Background / Feature Image (optional)"
+                      value={slide.image_url}
+                      onChange={(url) => updateSlide(idx, { image_url: url })}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button type="button" variant="secondary" onClick={addSlide} className="mt-4 w-full gap-2">
+              <Plus className="h-4 w-4" /> Add another slide / point
+            </Button>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <Toggle
+              checked={v.allow_personal_notes !== false}
+              onChange={(b) => set({ allow_personal_notes: b })}
+              label="Personal notes"
+              description="Let attendees type and save their own personal sermon notes on their device."
+            />
+          </div>
         </div>
       );
     }

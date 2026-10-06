@@ -1,8 +1,9 @@
-import { Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Send, Share2 } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Heart, Send, Share2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
 import { cx } from '../../components/ui';
 import { castVote, fetchPollResults, getVoterToken, submitForm } from '../../lib/api';
+import { fetchBibleVerse, type VerseResult } from '../../lib/bible';
 import type {
   AnnouncementContent,
   FormContent,
@@ -12,6 +13,7 @@ import type {
   PollContent,
   PollResults,
   SermonNotesContent,
+  SermonSlide,
 } from '../../lib/types';
 import { errorMessage } from '../../lib/utils';
 
@@ -241,6 +243,135 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
 }
 
 // ---------------------------------------------------------------------------
+// Inline Bible Verse renderer with automatic API fetching and caching
+function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTokens }) {
+  const [verse, setVerse] = useState<VerseResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(false);
+    fetchBibleVerse(reference)
+      .then((res) => {
+        if (!active) return;
+        if (res) {
+          setVerse(res);
+        } else {
+          setError(true);
+        }
+      })
+      .catch(() => {
+        if (active) setError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [reference]);
+
+  return (
+    <div className={cx('rounded-2xl border border-brand/20 bg-brand/5 p-4 sm:p-5 transition-all', theme.card)}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand">
+          <BookOpen className="h-3.5 w-3.5" />
+          {verse?.reference || reference}
+        </span>
+        {verse?.translation_name && (
+          <span className={cx('text-[11px] font-medium opacity-60', theme.muted)}>
+            {verse.translation_name}
+          </span>
+        )}
+      </div>
+
+      {loading && (
+        <p className={cx('text-sm italic opacity-70 animate-pulse', theme.muted)}>
+          Loading scripture text for {reference}…
+        </p>
+      )}
+
+      {!loading && verse && (
+        <blockquote className="text-base italic leading-relaxed text-inherit font-serif">
+          “{verse.text}”
+        </blockquote>
+      )}
+
+      {!loading && error && (
+        <p className={cx('text-sm italic', theme.muted)}>
+          Scripture reference: <span className="font-semibold">{reference}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: number; theme: ThemeTokens }) {
+  const hasBackground = Boolean(slide.image_url);
+
+  return (
+    <div
+      className={cx(
+        'relative overflow-hidden rounded-2xl border shadow-sm transition-all sm:rounded-3xl',
+        hasBackground
+          ? 'border-transparent text-white'
+          : cx('border-black/5 dark:border-white/10', theme.card)
+      )}
+    >
+      {/* Background Image with readable overlay */}
+      {hasBackground && (
+        <div className="absolute inset-0 z-0">
+          <img
+            src={slide.image_url}
+            alt={slide.title || ''}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/75 to-slate-950/60 backdrop-blur-[1px]" />
+        </div>
+      )}
+
+      <div className="relative z-10 space-y-4 p-5 sm:p-7">
+        {/* Slide Point / Title */}
+        {slide.title && (
+          <div className="flex items-start gap-3">
+            <span
+              className={cx(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                hasBackground
+                  ? 'bg-brand text-white'
+                  : 'bg-brand/10 text-brand'
+              )}
+            >
+              {index + 1}
+            </span>
+            <h3 className="text-lg font-bold leading-snug sm:text-xl">
+              {slide.title}
+            </h3>
+          </div>
+        )}
+
+        {/* Bible Verse Reference Box */}
+        {slide.verse_reference && (
+          <BibleVerseBox reference={slide.verse_reference} theme={theme} />
+        )}
+
+        {/* Explanatory notes / Markdown body */}
+        {slide.body && (
+          <div className={hasBackground ? 'text-slate-100 opacity-95' : undefined}>
+            <Markdown>{slide.body}</Markdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 function SermonNotes({ id, title, c, theme }: { id: string; title: string; c: SermonNotesContent; theme: ThemeTokens }) {
   const key = `sb_notes:${id}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(key) || '');
@@ -251,7 +382,34 @@ function SermonNotes({ id, title, c, theme }: { id: string; title: string; c: Se
     return () => clearTimeout(t);
   }, [key, notes]);
 
-  const fullText = [title, c.speaker, c.scripture, '', c.body, '', '— My notes —', notes].filter((x) => x !== undefined).join('\n');
+  const mainVerse = c.main_verse || c.scripture;
+  const slides = c.slides && c.slides.length > 0 ? c.slides : null;
+
+  // Build full text for sharing / clipboard
+  const fullText = [
+    title,
+    c.speaker ? `Speaker: ${c.speaker}` : '',
+    mainVerse ? `Scripture: ${mainVerse}` : '',
+    '',
+    slides
+      ? slides
+          .map((s, i) =>
+            [
+              `Point ${i + 1}: ${s.title || ''}`,
+              s.verse_reference ? `Verse: ${s.verse_reference}` : '',
+              s.body || '',
+            ]
+              .filter(Boolean)
+              .join('\n')
+          )
+          .join('\n\n')
+      : c.body || '',
+    '',
+    '— My personal notes —',
+    notes,
+  ]
+    .filter((x) => x !== undefined)
+    .join('\n');
 
   const share = async () => {
     if (navigator.share) {
@@ -267,30 +425,78 @@ function SermonNotes({ id, title, c, theme }: { id: string; title: string; c: Se
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const meta = [c.speaker, c.scripture].filter(Boolean).join(' · ');
+  const meta = [c.speaker, mainVerse].filter(Boolean).join(' · ');
+
   return (
-    <Shell theme={theme}>
-      <Title theme={theme} eyebrow="Sermon notes">{title}</Title>
-      {meta && <p className={cx('-mt-3 text-sm font-medium', theme.muted)}>{meta}</p>}
-      <Markdown>{c.body}</Markdown>
+    <div className="space-y-6">
+      {/* Header Card */}
+      <article className={cx('overflow-hidden rounded-3xl p-6 shadow-xl sm:p-8', theme.card)}>
+        <header className="space-y-2">
+          <p className={cx('text-xs font-semibold uppercase tracking-wider', theme.muted)}>
+            Sermon Notes
+          </p>
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl">{title}</h1>
+          {meta && <p className={cx('text-sm font-medium', theme.muted)}>{meta}</p>}
+        </header>
+
+        {/* Main Sermon Passage if provided */}
+        {mainVerse && (
+          <div className="mt-5">
+            <BibleVerseBox reference={mainVerse} theme={theme} />
+          </div>
+        )}
+
+        {/* Legacy Markdown body if no slides configured */}
+        {!slides && c.body && (
+          <div className="mt-5">
+            <Markdown>{c.body}</Markdown>
+          </div>
+        )}
+      </article>
+
+      {/* Slide Components Shown One Under the Other */}
+      {slides && slides.length > 0 && (
+        <div className="space-y-4">
+          {slides.map((slide, idx) => (
+            <SermonSlideCard key={slide.id || idx} slide={slide} index={idx} theme={theme} />
+          ))}
+        </div>
+      )}
+
+      {/* Personal Notes Card */}
       {c.allow_personal_notes !== false && (
-        <div className="space-y-2">
-          <label htmlFor={`notes-${id}`} className="text-sm font-semibold">My notes</label>
+        <article className={cx('rounded-3xl p-6 shadow-xl sm:p-8 space-y-3', theme.card)}>
+          <div className="flex items-center justify-between">
+            <label htmlFor={`notes-${id}`} className="text-sm font-bold">
+              My Personal Notes
+            </label>
+            <span className={cx('text-xs', theme.muted)}>Saved locally</span>
+          </div>
           <textarea
             id={`notes-${id}`}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={6}
-            placeholder="Write your thoughts… they stay on this device."
-            className={cx('w-full rounded-xl border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand/40', theme.input)}
+            rows={5}
+            placeholder="Write your personal reflections… they stay saved on this device."
+            className={cx(
+              'w-full rounded-2xl border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand/40',
+              theme.input
+            )}
           />
-          <button type="button" onClick={share} className={cx('inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium', theme.chip)}>
+          <button
+            type="button"
+            onClick={share}
+            className={cx(
+              'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-98',
+              theme.chip
+            )}
+          >
             {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-            {copied ? 'Copied' : 'Save / share notes'}
+            {copied ? 'Copied to clipboard' : 'Save / share sermon notes'}
           </button>
-        </div>
+        </article>
       )}
-    </Shell>
+    </div>
   );
 }
 

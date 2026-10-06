@@ -90,11 +90,24 @@ export interface AnnouncementContent {
   cta_url?: string;
 }
 
+export interface SermonSlide {
+  id: string;
+  title?: string; // Point or headline, e.g. "1. Present struggles are temporary"
+  verse_reference?: string; // e.g. "Romans 8:18" or "John 3:16"
+  verse_text?: string; // Optional manual override or cached verse text
+  body?: string; // Optional explanatory notes/bullet points (markdown)
+  image_url?: string; // Background / feature image for the slide
+}
+
 export interface SermonNotesContent {
   speaker?: string;
+  main_verse?: string; // Primary sermon scripture, e.g. "Romans 8:18–28"
+  slides?: SermonSlide[]; // Sermon slides displayed sequentially one under the other
+  allow_personal_notes?: boolean;
+
+  // Backwards compatibility for older single markdown body
   scripture?: string;
   body?: string; // markdown
-  allow_personal_notes?: boolean;
 }
 
 export interface PollOption {

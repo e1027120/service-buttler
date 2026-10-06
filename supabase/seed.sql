@@ -101,7 +101,7 @@ begin
     )
   );
 
-  -- 2. Sermon Notes (+10m to +55m)
+  -- 2. Sermon Notes (+10m to +55m) (Slide components stacked with scripture & background images)
   insert into public.actions (church_id, service_id, type, title, start_offset_minutes, end_offset_minutes, priority, content)
   values (
     v_church, v_service, 'sermon_notes',
@@ -109,9 +109,30 @@ begin
     10, 55, 20,
     jsonb_build_object(
       'speaker', 'Pastor David Mitchell',
-      'scripture', 'Romans 8:18–28',
-      'body', E'## Living with Unshakeable Hope\n\n### 1. Present struggles are temporary\n> "For I consider that the sufferings of this present time are not worthy to be compared with the glory which shall be revealed in us." — Romans 8:18\n\n* Real hope does not ignore pain, it anchors through it.\n* God is working behind what you cannot see.\n\n### 2. The Spirit helps in our weakness\nWe do not always know what to pray, but the Spirit intercedes with groans that words cannot express.\n\n### 3. God works all things together for good\nNot all things are good, but God is able to redeem all things.',
-      'allow_personal_notes', true
+      'main_verse', 'Romans 8:18–28',
+      'allow_personal_notes', true,
+      'slides', jsonb_build_array(
+        jsonb_build_object(
+          'id', 'sermon-pt-1',
+          'title', '1. Present struggles are temporary',
+          'verse_reference', 'Romans 8:18',
+          'body', E'* Real biblical hope does not ignore pain; it anchors through the storm.\n* What God is preparing in you is greater than what is happening to you.',
+          'image_url', 'https://images.unsplash.com/photo-1509021436665-8f07dbf5bf1d?auto=format&fit=crop&w=1200&q=80'
+        ),
+        jsonb_build_object(
+          'id', 'sermon-pt-2',
+          'title', '2. The Holy Spirit intercedes in our weakness',
+          'verse_reference', 'Romans 8:26',
+          'body', E'* We do not always have the right words to pray.\n* The Spirit bridges the gap with groans deeper than words.',
+          'image_url', 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1200&q=80'
+        ),
+        jsonb_build_object(
+          'id', 'sermon-pt-3',
+          'title', '3. God works all things together for ultimate good',
+          'verse_reference', 'Romans 8:28',
+          'body', E'* Not all things that happen are good, but God is able to redeem all things.\n* Trust His character even when you cannot trace His hand.'
+        )
+      )
     )
   );
 
