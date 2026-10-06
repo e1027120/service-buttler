@@ -310,15 +310,17 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: number; theme: ThemeTokens }) {
   const hasBackground = Boolean(slide.image_url);
+  const hasExtraContent = Boolean(slide.verse_reference || slide.body);
 
   return (
     <div
       className={cx(
-        'relative overflow-hidden rounded-2xl border shadow-sm transition-all sm:rounded-3xl',
+        'relative overflow-hidden rounded-2xl border shadow-sm transition-all sm:rounded-3xl flex flex-col justify-end',
         hasBackground
-          ? 'border-transparent text-white'
+          ? 'border-transparent text-white min-h-[260px] sm:min-h-[320px] aspect-[16/10]'
           : cx('border-black/5 dark:border-white/10', theme.card)
       )}
     >
@@ -331,17 +333,24 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
             className="h-full w-full object-cover"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/75 to-slate-950/60 backdrop-blur-[1px]" />
+          <div
+            className={cx(
+              'absolute inset-0',
+              hasExtraContent
+                ? 'bg-gradient-to-t from-slate-950/95 via-slate-950/80 to-slate-950/50 backdrop-blur-[1px]'
+                : 'bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent'
+            )}
+          />
         </div>
       )}
 
-      <div className="relative z-10 space-y-4 p-5 sm:p-7">
+      <div className="relative z-10 space-y-4 p-5 sm:p-7 w-full">
         {/* Slide Point / Title */}
         {slide.title && (
           <div className="flex items-start gap-3">
             <span
               className={cx(
-                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
                 hasBackground
                   ? 'bg-brand text-white'
                   : 'bg-brand/10 text-brand'
@@ -349,7 +358,7 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
             >
               {index + 1}
             </span>
-            <h3 className="text-lg font-bold leading-snug sm:text-xl">
+            <h3 className="text-lg font-bold leading-snug drop-shadow sm:text-xl">
               {slide.title}
             </h3>
           </div>
@@ -362,7 +371,7 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
 
         {/* Explanatory notes / Markdown body */}
         {slide.body && (
-          <div className={hasBackground ? 'text-slate-100 opacity-95' : undefined}>
+          <div className={hasBackground ? 'text-slate-100 opacity-95 drop-shadow-sm' : undefined}>
             <Markdown>{slide.body}</Markdown>
           </div>
         )}
