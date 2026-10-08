@@ -40,18 +40,7 @@ export function defaultContent(type: ActionType): C {
       } satisfies AnnouncementContent as C;
     case 'sermon_notes':
       return {
-        speaker: '',
-        main_verse: '',
-        slides: [
-          {
-            id: shortId(),
-            title: '1. Present struggles are temporary',
-            verse_reference: 'Romans 8:18',
-            body: '* Real hope does not ignore pain, it anchors through it.\n* God is working behind what you cannot see.',
-            image_url: '',
-          },
-        ],
-        allow_personal_notes: true,
+        sermon_id: '',
       } satisfies SermonNotesContent as C;
     case 'poll':
       return {
@@ -127,14 +116,17 @@ export function validateContent(type: ActionType, c: C): string | null {
   }
   if (type === 'sermon_notes') {
     const s = c as SermonNotesContent;
+    if (s.sermon_id) {
+      return null;
+    }
     const slides = s.slides && s.slides.length > 0 ? s.slides : null;
     if (slides) {
       const hasContent = slides.some(
         (sl) => (sl.title && sl.title.trim()) || (sl.verse_reference && sl.verse_reference.trim()) || (sl.body && sl.body.trim()) || sl.image_url || sl.is_full_image
       );
-      if (!hasContent && !s.body?.trim()) return 'Sermon notes need at least one slide with a point, verse, notes, or image';
+      if (!hasContent && !s.body?.trim()) return 'Please select a sermon from your Sermon Notes Library';
     } else if (!s.body?.trim()) {
-      return 'Sermon notes need content or slides';
+      return 'Please choose a sermon from your Sermon Notes Library';
     }
   }
   if (type === 'poll') {
@@ -177,6 +169,12 @@ export function normalizeContent(type: ActionType, c: C): C {
   }
   if (type === 'sermon_notes') {
     const s = c as SermonNotesContent;
+    if (s.sermon_id) {
+      return {
+        sermon_id: s.sermon_id,
+        allow_personal_notes: s.allow_personal_notes !== false,
+      };
+    }
     if (s.slides && s.slides.length > 0) {
       const cleanedSlides = s.slides.map((sl) => ({
         ...sl,

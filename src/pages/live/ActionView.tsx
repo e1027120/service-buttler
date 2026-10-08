@@ -75,6 +75,7 @@ export function ActionView({
           churchSlug={churchSlug}
           churchName={churchName}
           serviceName={serviceName}
+          churchLanding={churchLanding}
         />
       );
     case 'poll':
@@ -645,6 +646,7 @@ function SermonNotes({
   churchSlug,
   churchName,
   serviceName,
+  churchLanding,
 }: {
   id: string;
   title: string;
@@ -653,18 +655,27 @@ function SermonNotes({
   churchSlug?: string;
   churchName?: string;
   serviceName?: string;
+  churchLanding?: LandingConfig;
 }) {
   const key = `sb_notes:${id}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(key) || '');
   const [copied, setCopied] = useState(false);
 
-  const mainVerse = c.main_verse || c.scripture;
-  const slides = c.slides && c.slides.length > 0 ? c.slides : null;
+  // If action links to an archived sermon from the central library, resolve it dynamically
+  const linkedSermon = c.sermon_id
+    ? (churchLanding?.sermons || []).find((s) => s.id === c.sermon_id) || null
+    : null;
+
+  const displayTitle = linkedSermon?.title || title;
+  const speaker = linkedSermon ? linkedSermon.speaker : c.speaker;
+  const mainVerse = linkedSermon ? linkedSermon.main_verse : (c.main_verse || c.scripture);
+  const slides = linkedSermon ? (linkedSermon.slides || []) : (c.slides && c.slides.length > 0 ? c.slides : null);
+  const allowNotes = linkedSermon ? linkedSermon.allow_personal_notes !== false : c.allow_personal_notes !== false;
 
   // Build full text for sharing / clipboard
   const fullText = [
-    title,
-    c.speaker ? `Speaker: ${c.speaker}` : '',
+    displayTitle,
+    speaker ? `Speaker: ${speaker}` : '',
     mainVerse ? `Scripture: ${mainVerse}` : '',
     '',
     slides
@@ -695,20 +706,20 @@ function SermonNotes({
         churchSlug,
         churchName,
         serviceName,
-        title,
-        speaker: c.speaker,
+        title: displayTitle,
+        speaker,
         mainVerse,
         slides: slides || undefined,
         fullSermonText: fullText,
       });
     }, 300);
     return () => clearTimeout(t);
-  }, [id, notes, churchSlug, churchName, serviceName, title, c.speaker, c.sermon_id, mainVerse, slides, fullText]);
+  }, [id, notes, churchSlug, churchName, serviceName, displayTitle, speaker, c.sermon_id, mainVerse, slides, fullText]);
 
   const share = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title, text: fullText });
+        await navigator.share({ title: displayTitle, text: fullText });
         return;
       } catch {
         /* cancelled */
@@ -719,7 +730,7 @@ function SermonNotes({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const meta = [c.speaker, mainVerse].filter(Boolean).join(' · ');
+  const meta = [speaker, mainVerse].filter(Boolean).join(' · ');
 
   return (
     <div className="space-y-6">
@@ -729,7 +740,7 @@ function SermonNotes({
           <p className={cx('text-xs font-semibold uppercase tracking-wider', theme.muted)}>
             Sermon Notes
           </p>
-          <h1 className="text-2xl font-bold leading-tight sm:text-3xl">{title}</h1>
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl">{displayTitle}</h1>
           {meta && <p className={cx('text-sm font-medium', theme.muted)}>{meta}</p>}
         </header>
 
@@ -758,7 +769,7 @@ function SermonNotes({
       )}
 
       {/* Personal Notes Card */}
-      {c.allow_personal_notes !== false && (
+      {allowNotes && (
         <article className={cx('rounded-3xl p-6 shadow-xl sm:p-8 space-y-3', theme.card)}>
           <div className="flex items-center justify-between">
             <label htmlFor={`notes-${id}`} className="text-sm font-bold">

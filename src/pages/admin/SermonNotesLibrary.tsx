@@ -112,11 +112,8 @@ export default function SermonNotesLibrary() {
     setPushingId(sermon.id);
     try {
       const content: SermonNotesContent = {
-        speaker: sermon.speaker,
-        main_verse: sermon.main_verse,
-        slides: sermon.slides,
-        allow_personal_notes: sermon.allow_personal_notes,
         sermon_id: sermon.id,
+        allow_personal_notes: sermon.allow_personal_notes,
       };
 
       // Check if there's already an existing action linked to this sermon
