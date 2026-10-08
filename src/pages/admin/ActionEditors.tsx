@@ -172,6 +172,10 @@ export function normalizeContent(type: ActionType, c: C): C {
     if (s.sermon_id) {
       return {
         sermon_id: s.sermon_id,
+        speaker: s.speaker?.trim() || undefined,
+        main_verse: (s.main_verse || s.scripture)?.trim() || undefined,
+        scripture: (s.main_verse || s.scripture)?.trim() || undefined,
+        slides: s.slides || [],
         allow_personal_notes: s.allow_personal_notes !== false,
       };
     }

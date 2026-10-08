@@ -614,7 +614,7 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
                   {slide.slide_number?.trim() || index + 1}
                 </span>
               )}
-              <h3 className="text-lg font-bold leading-snug drop-shadow sm:text-xl">
+              <h3 className={cx('text-lg font-bold leading-snug sm:text-xl', hasBackground && 'drop-shadow text-white')}>
                 {slide.title}
               </h3>
             </div>
@@ -663,13 +663,15 @@ function SermonNotes({
 
   // If action links to an archived sermon from the central library, resolve it dynamically
   const linkedSermon = c.sermon_id
-    ? (churchLanding?.sermons || []).find((s) => s.id === c.sermon_id) || null
+    ? (churchLanding?.sermons || []).find((s) => String(s.id) === String(c.sermon_id)) || null
     : null;
 
   const displayTitle = linkedSermon?.title || title;
   const speaker = linkedSermon ? linkedSermon.speaker : c.speaker;
   const mainVerse = linkedSermon ? linkedSermon.main_verse : (c.main_verse || c.scripture);
-  const slides = linkedSermon ? (linkedSermon.slides || []) : (c.slides && c.slides.length > 0 ? c.slides : null);
+  const slides = (linkedSermon?.slides && linkedSermon.slides.length > 0)
+    ? linkedSermon.slides
+    : (c.slides && c.slides.length > 0 ? c.slides : null);
   const allowNotes = linkedSermon ? linkedSermon.allow_personal_notes !== false : c.allow_personal_notes !== false;
 
   // Build full text for sharing / clipboard

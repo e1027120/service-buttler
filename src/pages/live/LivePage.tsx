@@ -196,18 +196,28 @@ export default function LivePage() {
               type="button"
               onClick={() => setNotesModalOpen(true)}
               className={cx(
-                'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm transition active:scale-95',
+                'inline-flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 rounded-full text-xs font-semibold shadow-sm transition active:scale-95 min-[475px]:h-auto min-[475px]:w-auto min-[475px]:px-3 min-[475px]:py-1.5',
                 landing.theme === 'brand' ? 'bg-white/15 text-white hover:bg-white/25' : theme.chip
               )}
               title="Search and view your saved sermon notes"
+              aria-label="My Notes"
             >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>My Notes</span>
+              <BookOpen className="h-4 w-4 shrink-0 min-[475px]:h-3.5 min-[475px]:w-3.5" />
+              <span className="hidden min-[475px]:inline">My Notes</span>
             </button>
 
             {data!.live && (
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-500 px-2.5 py-1 text-xs font-semibold text-white">
-                <Radio className="h-3 w-3 animate-pulse" /> LIVE
+              <span
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full p-1.5 text-xs font-semibold min-[475px]:bg-red-500 min-[475px]:px-2.5 min-[475px]:py-1 min-[475px]:text-white"
+                title="Live service in progress"
+                aria-label="Live service"
+              >
+                <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75 min-[475px]:hidden" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 min-[475px]:hidden" />
+                  <Radio className="hidden h-3 w-3 animate-pulse min-[475px]:block" />
+                </span>
+                <span className="hidden min-[475px]:inline">LIVE</span>
               </span>
             )}
           </div>

@@ -62,6 +62,41 @@ export default function SermonNotesLibrary() {
     };
 
     unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+
+    // Also sync any live actions linked to this sermon so they immediately receive the latest slides
+    try {
+      const { data: linkedActions } = await supabase
+        .from('actions')
+        .select('id, content')
+        .eq('church_id', church.id)
+        .eq('type', 'sermon_notes');
+
+      if (linkedActions) {
+        for (const act of linkedActions) {
+          const c = act.content as SermonNotesContent;
+          if (c && String(c.sermon_id) === String(saved.id)) {
+            await supabase
+              .from('actions')
+              .update({
+                title: saved.title,
+                content: {
+                  ...c,
+                  sermon_id: saved.id,
+                  speaker: saved.speaker,
+                  main_verse: saved.main_verse,
+                  slides: saved.slides || [],
+                  allow_personal_notes: saved.allow_personal_notes,
+                },
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', act.id);
+          }
+        }
+      }
+    } catch {
+      /* non-blocking */
+    }
+
     await reloadChurch();
     toast(isNew ? 'Sermon notes created and archived' : 'Sermon notes updated');
   };
@@ -113,6 +148,9 @@ export default function SermonNotesLibrary() {
     try {
       const content: SermonNotesContent = {
         sermon_id: sermon.id,
+        speaker: sermon.speaker,
+        main_verse: sermon.main_verse,
+        slides: sermon.slides || [],
         allow_personal_notes: sermon.allow_personal_notes,
       };
 
@@ -124,7 +162,7 @@ export default function SermonNotesLibrary() {
         .eq('type', 'sermon_notes');
 
       const existing = (existingActions as Action[] | null)?.find(
-        (a) => (a.content as SermonNotesContent)?.sermon_id === sermon.id,
+        (a) => String((a.content as SermonNotesContent)?.sermon_id) === String(sermon.id),
       );
 
       if (existing) {

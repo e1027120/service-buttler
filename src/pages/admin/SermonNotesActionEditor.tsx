@@ -30,13 +30,17 @@ export function SermonNotesActionEditor({
 
   const selectedSermon = useMemo(() => {
     if (!value.sermon_id) return null;
-    return librarySermons.find((s) => s.id === value.sermon_id) || null;
+    return librarySermons.find((s) => String(s.id) === String(value.sermon_id)) || null;
   }, [librarySermons, value.sermon_id]);
 
   const selectSermon = (sermonId: string) => {
+    const match = librarySermons.find((s) => String(s.id) === String(sermonId));
     onChange({
       sermon_id: sermonId,
-      allow_personal_notes: value.allow_personal_notes ?? true,
+      speaker: match?.speaker,
+      main_verse: match?.main_verse,
+      slides: match?.slides || [],
+      allow_personal_notes: match ? match.allow_personal_notes : (value.allow_personal_notes ?? true),
     });
   };
 
