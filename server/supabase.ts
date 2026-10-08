@@ -9,6 +9,9 @@ export interface Env {
   // Fallbacks so a single local .env (shared with Vite) is enough
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
+  // Resend API key for sending team invitation emails
+  RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
 }
 
 export class HttpError extends Error {
@@ -26,13 +29,18 @@ function config(env: Env) {
   return { url: url.replace(/\/$/, ''), key };
 }
 
-export async function rpc<T>(env: Env, fn: string, args: Record<string, unknown>): Promise<T> {
+export async function rpc<T>(
+  env: Env,
+  fn: string,
+  args: Record<string, unknown>,
+  authHeader?: string | null
+): Promise<T> {
   const { url, key } = config(env);
   const res = await fetch(`${url}/rest/v1/rpc/${fn}`, {
     method: 'POST',
     headers: {
       apikey: key,
-      Authorization: `Bearer ${key}`,
+      Authorization: authHeader || `Bearer ${key}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },

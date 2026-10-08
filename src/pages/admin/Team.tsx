@@ -1,4 +1,4 @@
-import { Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, Trash2, UserPlus } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, Field, Input, Modal, PageLoader, Select, useToast } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
@@ -142,6 +142,7 @@ export default function Team() {
       {inviting && (
         <InviteModal
           churchId={church.id}
+          churchName={church.name}
           isOwner={myRole === 'owner'}
           onClose={() => setInviting(false)}
           onInvited={() => {
@@ -154,23 +155,92 @@ export default function Team() {
   );
 }
 
-function InviteModal({ churchId, isOwner, onClose, onInvited }: { churchId: string; isOwner: boolean; onClose: () => void; onInvited: () => void }) {
+function InviteModal({
+  churchId,
+  churchName,
+  isOwner,
+  onClose,
+  onInvited,
+}: {
+  churchId: string;
+  churchName: string;
+  isOwner: boolean;
+  onClose: () => void;
+  onInvited: () => void;
+}) {
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<MemberRole>('editor');
   const [busy, setBusy] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const inviteUrl = `${window.location.origin}/login?invited_to=${encodeURIComponent(churchName)}`;
+
+  const copyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopiedLink(true);
+      toast('Invitation link copied to clipboard');
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      toast('Failed to copy link', 'error');
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const { data, error } = await supabase.rpc('invite_member', {
-        p_church: churchId,
-        p_email: email.trim().toLowerCase(),
-        p_role: role,
-      });
-      if (error) throw error;
-      toast(data === 'added' ? 'User added to team' : 'Invitation recorded');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const inviterEmail = sessionData.session?.user?.email;
+
+      let resJson: { status?: string; emailSent?: boolean; hasResendConfigured?: boolean; emailError?: string } | null = null;
+
+      if (token) {
+        try {
+          const res = await fetch('/api/team/invite', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              church_id: churchId,
+              church_name: churchName,
+              email: email.trim().toLowerCase(),
+              role,
+              inviter_name: inviterEmail,
+            }),
+          });
+          if (res.ok) {
+            resJson = await res.json();
+          }
+        } catch {
+          /* Worker endpoint unreachable, fallback to direct RPC */
+        }
+      }
+
+      if (!resJson) {
+        const { data, error } = await supabase.rpc('invite_member', {
+          p_church: churchId,
+          p_email: email.trim().toLowerCase(),
+          p_role: role,
+        });
+        if (error) throw error;
+        resJson = { status: data as string, emailSent: false, hasResendConfigured: false };
+      }
+
+      if (resJson.status === 'added') {
+        toast('User was already registered and has been added to the team!');
+      } else if (resJson.emailSent) {
+        toast(`Invitation sent! An email was delivered to ${email}.`);
+      } else if (resJson.hasResendConfigured) {
+        toast(`Invitation recorded, but email failed: ${resJson.emailError || 'check logs'}`, 'error');
+      } else {
+        toast('Invitation recorded. (Set RESEND_API_KEY in Cloudflare for automatic emails).');
+      }
+
       onInvited();
     } catch (err) {
       toast(errorMessage(err), 'error');
@@ -182,9 +252,20 @@ function InviteModal({ churchId, isOwner, onClose, onInvited }: { churchId: stri
   return (
     <Modal open onClose={onClose} title="Invite team member">
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Email address" hint="If they already have an account, they get access immediately. Otherwise they gain access as soon as they sign up.">
-          <Input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pastor@church.org" />
+        <Field
+          label="Email address"
+          hint="If they already have an account, they get access immediately. Otherwise they gain access as soon as they sign up."
+        >
+          <Input
+            type="email"
+            required
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="pastor@church.org"
+          />
         </Field>
+
         <Field label="Role">
           <Select value={role} onChange={(e) => setRole(e.target.value as MemberRole)}>
             <option value="editor">Editor — can edit services and actions</option>
@@ -192,9 +273,30 @@ function InviteModal({ churchId, isOwner, onClose, onInvited }: { churchId: stri
             {isOwner && <option value="owner">Owner — full access including deleting the church</option>}
           </Select>
         </Field>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 flex items-center justify-between gap-3">
+          <span className="truncate">
+            Share link directly: <strong className="text-slate-800">{inviteUrl}</strong>
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={copyInviteLink}
+            className="shrink-0 gap-1 text-xs"
+          >
+            {copiedLink ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+            <span>{copiedLink ? 'Copied' : 'Copy link'}</span>
+          </Button>
+        </div>
+
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={busy}>Send invite</Button>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={busy}>
+            Send invite
+          </Button>
         </div>
       </form>
     </Modal>
