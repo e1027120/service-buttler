@@ -78,6 +78,8 @@ export interface SermonSlideImageBlock {
 
 export interface SermonSlideTextBlock {
   enabled: boolean;
+  show_number?: boolean; // Whether to display a slide/point number badge in the frontend
+  slide_number?: string; // Custom number or label, e.g. "1", "A", "Part 2"
   title?: string; // Main Point (optional)
   verse_reference?: string; // Bible Verse (optional)
   body?: string; // Body Text RTE (optional)
@@ -202,7 +204,9 @@ export interface AnnouncementContent {
 
 export interface SermonSlide {
   id: string;
-  title?: string; // Point or headline, e.g. "1. Present struggles are temporary"
+  show_number?: boolean; // Whether to display a slide/point number in the frontend (defaults to true if slide_number is set or fallback)
+  slide_number?: string; // Custom number/label, e.g. "1", "Point 1", "I", "Intro"
+  title?: string; // Point or headline, e.g. "Present struggles are temporary"
   verse_reference?: string; // e.g. "Romans 8:18" or "John 3:16"
   verse_text?: string; // Optional manual override or cached verse text
   body?: string; // Optional explanatory notes/bullet points (markdown)

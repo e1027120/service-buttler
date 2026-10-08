@@ -322,11 +322,44 @@ export function SermonSlideEditorModal({
                 </div>
               ) : data.text.enabled ? (
                 <div className="mt-4 space-y-4 animate-fade-in">
-                  <Field label="Main Point / Headline (optional)" hint="e.g. 1. Present struggles are temporary">
+                  {/* Number Control Option */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-900">Display Point / Slide Number</span>
+                        <p className="text-[11px] text-slate-500">
+                          Control whether a number badge is shown next to the headline in the frontend.
+                        </p>
+                      </div>
+                      <Toggle
+                        checked={Boolean(data.text.show_number)}
+                        onChange={(checked) => updateText({ show_number: checked })}
+                        label="Show Number Badge"
+                      />
+                    </div>
+
+                    {data.text.show_number && (
+                      <div className="pt-2 border-t border-slate-100">
+                        <Field
+                          label="Custom Number / Label (optional)"
+                          hint="e.g. 1, 2, A, B, or Part 1. Leave blank for automatic position number."
+                        >
+                          <Input
+                            value={data.text.slide_number || ''}
+                            onChange={(e) => updateText({ slide_number: e.target.value })}
+                            placeholder="e.g. 1 (or leave blank for automatic)"
+                            className="max-w-xs"
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </div>
+
+                  <Field label="Main Point / Headline (optional)" hint="e.g. Present struggles are temporary">
                     <Input
                       value={data.text.title || ''}
                       onChange={(e) => updateText({ title: e.target.value })}
-                      placeholder="e.g. 1. Hope anchors our soul"
+                      placeholder="e.g. Hope anchors our soul"
                     />
                   </Field>
 
@@ -467,9 +500,11 @@ export function SermonSlideEditorModal({
                   <div className="space-y-3.5 p-5">
                     {data.text.title && (
                       <div className="flex items-start gap-2.5">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
-                          1
-                        </span>
+                        {data.text.show_number && (
+                          <span className="flex h-6 min-w-[24px] px-1.5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
+                            {data.text.slide_number?.trim() || '1'}
+                          </span>
+                        )}
                         <h4 className="font-bold text-base leading-snug text-slate-900">
                           {data.text.title}
                         </h4>

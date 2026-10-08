@@ -601,16 +601,18 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
           {/* Slide Point / Title */}
           {hasTitle && (
             <div className="flex items-start gap-3">
-              <span
-                className={cx(
-                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
-                  hasBackground
-                    ? 'bg-brand text-white'
-                    : 'bg-brand/10 text-brand'
-                )}
-              >
-                {index + 1}
-              </span>
+              {slide.show_number && (
+                <span
+                  className={cx(
+                    'flex h-6 min-w-[24px] px-1.5 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
+                    hasBackground
+                      ? 'bg-brand text-white'
+                      : 'bg-brand/10 text-brand'
+                  )}
+                >
+                  {slide.slide_number?.trim() || index + 1}
+                </span>
+              )}
               <h3 className="text-lg font-bold leading-snug drop-shadow sm:text-xl">
                 {slide.title}
               </h3>
@@ -667,15 +669,16 @@ function SermonNotes({
     '',
     slides
       ? slides
-          .map((s, i) =>
-            [
-              `Point ${i + 1}: ${s.title || ''}`,
+          .map((s, i) => {
+            const prefix = s.show_number ? `${s.slide_number?.trim() || i + 1}. ` : '';
+            return [
+              s.title ? `${prefix}${s.title}` : (prefix ? `Point ${prefix.trim()}` : ''),
               s.verse_reference ? `Verse: ${s.verse_reference}` : '',
               s.body || '',
             ]
               .filter(Boolean)
-              .join('\n')
-          )
+              .join('\n');
+          })
           .join('\n\n')
       : c.body || '',
     '',

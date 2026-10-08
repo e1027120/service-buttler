@@ -242,15 +242,16 @@ export function NotesHistoryModal({
       sermon.main_verse ? `Scripture: ${sermon.main_verse}` : '',
       sermon.description || '',
       '',
-      ...(sermon.slides || []).map((s, i) =>
-        [
-          `Point ${i + 1}: ${s.title || ''}`,
+      ...(sermon.slides || []).map((s, i) => {
+        const prefix = s.show_number ? `${s.slide_number?.trim() || i + 1}. ` : '';
+        return [
+          s.title ? `${prefix}${s.title}` : (prefix ? `Point ${prefix.trim()}` : ''),
           s.verse_reference ? `Verse: ${s.verse_reference}` : '',
           s.body || '',
         ]
           .filter(Boolean)
-          .join('\n')
-      ),
+          .join('\n');
+      }),
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -684,10 +685,12 @@ export function NotesHistoryModal({
                               ) : (
                                 <>
                                   <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand/10 text-[10px] text-brand">
-                                      {idx + 1}
-                                    </span>
-                                    <span>{sl.title || `Point ${idx + 1}`}</span>
+                                    {sl.show_number && (
+                                      <span className="flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-brand/10 text-[10px] text-brand">
+                                        {sl.slide_number?.trim() || idx + 1}
+                                      </span>
+                                    )}
+                                    <span>{sl.title || (sl.show_number ? `Point ${sl.slide_number?.trim() || idx + 1}` : 'Slide Point')}</span>
                                   </div>
                                   {sl.verse_reference && (
                                     <p className="font-semibold text-brand text-[11px]">

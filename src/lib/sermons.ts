@@ -5,9 +5,11 @@ import type {
 } from './types';
 import { shortId } from './utils';
 
-export function getDefaultSermonSlide(title = ''): SermonSlide {
+export function getDefaultSermonSlide(title = '', slideNumber = ''): SermonSlide {
   return {
     id: shortId(),
+    show_number: false,
+    slide_number: slideNumber,
     title,
     verse_reference: '',
     verse_text: '',
@@ -28,7 +30,9 @@ export function getDefaultSermonRecord(title = 'New Sermon Notes'): SermonRecord
     slides: [
       {
         id: shortId(),
-        title: '1. Present struggles are temporary',
+        show_number: true,
+        slide_number: '1',
+        title: 'Present struggles are temporary',
         verse_reference: 'Romans 8:18',
         body: '* Real hope anchors through hardships\n* God works behind what we cannot see',
         image_url: '',
@@ -53,7 +57,9 @@ export function sermonSlideToDefinition(slide: SermonSlide): SermonSlideDefiniti
       is_full_image: isFull,
     },
     text: {
-      enabled: !isFull && Boolean(slide.title || slide.verse_reference || slide.body),
+      enabled: !isFull && Boolean(slide.title || slide.verse_reference || slide.body || slide.show_number),
+      show_number: slide.show_number,
+      slide_number: slide.slide_number,
       title: slide.title || '',
       verse_reference: slide.verse_reference || '',
       body: slide.body || '',
@@ -68,6 +74,8 @@ export function sermonDefinitionToSlide(def: SermonSlideDefinition): SermonSlide
   return {
     id: def.id,
     slide_id: def.id,
+    show_number: !isFull && def.text.enabled ? def.text.show_number : false,
+    slide_number: !isFull && def.text.enabled ? def.text.slide_number : undefined,
     title: !isFull && def.text.enabled ? def.text.title : '',
     verse_reference: !isFull && def.text.enabled ? def.text.verse_reference : '',
     body: !isFull && def.text.enabled ? def.text.body : '',

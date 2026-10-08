@@ -14,6 +14,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import {
   Badge,
   Button,
+  cx,
   Field,
   Input,
   Modal,
@@ -244,8 +245,16 @@ export function SermonEditorModal({
                     className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300"
                   >
                     {/* Number */}
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
-                      {idx + 1}
+                    <span
+                      title={slide.show_number ? `Displaying as: ${slide.slide_number || idx + 1}` : 'Number hidden in frontend'}
+                      className={cx(
+                        'flex h-6 min-w-[24px] px-1.5 shrink-0 items-center justify-center rounded-full text-xs font-bold transition',
+                        slide.show_number
+                          ? 'bg-brand/10 text-brand'
+                          : 'bg-slate-100 text-slate-400 opacity-60'
+                      )}
+                    >
+                      {slide.show_number ? (slide.slide_number?.trim() || idx + 1) : `${idx + 1}•`}
                     </span>
 
                     {/* Thumbnail */}
