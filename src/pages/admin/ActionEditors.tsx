@@ -17,6 +17,7 @@ import type {
   SermonSlide,
 } from '../../lib/types';
 import { errorMessage, shortId } from '../../lib/utils';
+import { AnnouncementEditor } from './AnnouncementEditor';
 import { ImageInput } from './ImageInput';
 
 type C = Record<string, unknown>;
@@ -111,9 +112,15 @@ export function validateContent(type: ActionType, c: C): string | null {
     const slides = a.slides && a.slides.length > 0 ? a.slides : null;
     if (slides) {
       const hasAnyContent = slides.some(
-        (s) => (s.body && s.body.trim()) || (s.title && s.title.trim()) || s.image_url
+        (s) =>
+          (s.body && s.body.trim()) ||
+          (s.title && s.title.trim()) ||
+          (s.subtitle && s.subtitle.trim()) ||
+          s.image_url ||
+          s.is_full_image ||
+          (s.cta_label && (s.cta_url || s.deeplink_id || s.deeplink_ios_url || s.deeplink_android_url))
       );
-      if (!hasAnyContent) return 'At least one slide needs a title, image, or message';
+      if (!hasAnyContent) return 'At least one slide needs an image, title, message, or button';
     } else {
       if (!a.body?.trim() && !a.image_url) return 'Announcement needs a message or image';
     }
@@ -349,201 +356,13 @@ export function ContentEditor({
   const set = (patch: C) => onChange({ ...value, ...patch });
   switch (type) {
     case 'announcement': {
-      const v = value as AnnouncementContent;
-      // Ensure slides array exists (normalize legacy single-slide content if present)
-      const slides =
-        v.slides && v.slides.length > 0
-          ? v.slides
-          : [
-              {
-                id: shortId(),
-                title: '',
-                body: v.body || '',
-                image_url: v.image_url || '',
-                cta_label: v.cta_label || '',
-                cta_url: v.cta_url || '',
-              },
-            ];
-
-      const updateSlide = (idx: number, patch: Partial<(typeof slides)[0]>) => {
-        const next = slides.map((s, i) => (i === idx ? { ...s, ...patch } : s));
-        set({ slides: next });
-      };
-
-      const addSlide = () => {
-        set({
-          slides: [
-            ...slides,
-            {
-              id: shortId(),
-              title: '',
-              body: '',
-              image_url: '',
-              cta_label: '',
-              cta_url: '',
-            },
-          ],
-        });
-      };
-
-      const removeSlide = (idx: number) => {
-        if (slides.length <= 1) return;
-        set({ slides: slides.filter((_, i) => i !== idx) });
-      };
-
-      const moveSlide = (idx: number, dir: -1 | 1) => {
-        const target = idx + dir;
-        if (target < 0 || target >= slides.length) return;
-        const next = [...slides];
-        const [moved] = next.splice(idx, 1);
-        next.splice(target, 0, moved);
-        set({ slides: next });
-      };
-
       return (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">Announcement Slides ({slides.length})</h3>
-              <p className="text-xs text-gray-500">Each slide can feature an image, text, and an action button.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
-                <span>Auto-advance:</span>
-                <select
-                  value={v.auto_advance_seconds || 0}
-                  onChange={(e) => set({ auto_advance_seconds: Number(e.target.value) })}
-                  className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 focus:border-brand focus:outline-none"
-                >
-                  <option value={0}>Manual only</option>
-                  <option value={4}>Every 4 seconds</option>
-                  <option value={6}>Every 6 seconds</option>
-                  <option value={8}>Every 8 seconds</option>
-                  <option value={12}>Every 12 seconds</option>
-                </select>
-              </label>
-              <Button type="button" size="sm" variant="secondary" onClick={addSlide} className="gap-1.5 text-xs">
-                <Plus className="h-3.5 w-3.5" /> Add Slide
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            {slides.map((slide, idx) => (
-              <div
-                key={slide.id || idx}
-                className="relative rounded-2xl border border-gray-200 bg-gray-50/60 p-4 transition-all sm:p-5"
-              >
-                <div className="mb-4 flex items-center justify-between border-b border-gray-200/80 pb-3">
-                  <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-700">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">
-                      {idx + 1}
-                    </span>
-                    Slide {idx + 1} of {slides.length}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => moveSlide(idx, -1)}
-                      disabled={idx === 0}
-                      title="Move slide up"
-                      className="h-7 w-7 p-0"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => moveSlide(idx, 1)}
-                      disabled={idx === slides.length - 1}
-                      title="Move slide down"
-                      className="h-7 w-7 p-0"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                    {slides.length > 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeSlide(idx)}
-                        title="Delete slide"
-                        className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <ImageInput
-                    churchId={churchId}
-                    label="Slide Image"
-                    value={slide.image_url}
-                    onChange={(url) => updateSlide(idx, { image_url: url })}
-                  />
-
-                  <Field label="Slide Headline / Title (optional)" hint="Appears as slide header">
-                    <Input
-                      value={slide.title || ''}
-                      onChange={(e) => updateSlide(idx, { title: e.target.value })}
-                      placeholder="e.g. Next Steps Class"
-                    />
-                  </Field>
-
-                  <Field label="Slide Message" hint="Markdown supported: **bold**, _italic_, lists, [links](https://…)">
-                    <Textarea
-                      rows={4}
-                      value={slide.body || ''}
-                      onChange={(e) => updateSlide(idx, { body: e.target.value })}
-                      placeholder="Write your announcement details here..."
-                    />
-                  </Field>
-
-                  <div className="space-y-2 rounded-xl border border-dashed border-slate-200 bg-white/70 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-slate-700">Slide Call to Action (Button)</span>
-                      <PlanningCenterPicker
-                        church={church}
-                        onSelect={(item) =>
-                          updateSlide(idx, {
-                            cta_label: item.title ? (item.title.length > 24 ? (item.type === 'signup' ? 'Register' : 'Sign Up') : item.title) : (item.type === 'signup' ? 'Register' : 'Sign Up'),
-                            cta_url: item.url,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Button label (CTA)">
-                        <Input
-                          value={slide.cta_label || ''}
-                          onChange={(e) => updateSlide(idx, { cta_label: e.target.value })}
-                          placeholder="e.g. Sign up, Register, Learn more"
-                        />
-                      </Field>
-                      <Field label="Button URL">
-                        <Input
-                          type="url"
-                          value={slide.cta_url || ''}
-                          onChange={(e) => updateSlide(idx, { cta_url: e.target.value })}
-                          placeholder="https://"
-                        />
-                      </Field>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <Button type="button" variant="secondary" onClick={addSlide} className="w-full gap-2">
-            <Plus className="h-4 w-4" /> Add another slide
-          </Button>
-        </div>
+        <AnnouncementEditor
+          value={value as AnnouncementContent}
+          onChange={(patch) => onChange({ ...value, ...patch })}
+          churchId={churchId}
+          church={church}
+        />
       );
     }
     case 'sermon_notes': {

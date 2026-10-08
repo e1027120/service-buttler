@@ -3,17 +3,19 @@ import {
   ChevronDown,
   ExternalLink,
   Inbox,
+  Layers,
   LayoutDashboard,
   LogOut,
   Menu,
   Palette,
   QrCode,
+  Smartphone,
   Sparkles,
   Users,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PageLoader, cx } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
@@ -24,7 +26,16 @@ import type { AdminContext } from './context';
 const NAV = [
   { to: '', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: 'services', label: 'Services & times', icon: CalendarClock },
-  { to: 'actions', label: 'Actions', icon: Sparkles },
+  {
+    to: 'actions',
+    label: 'Actions',
+    icon: Sparkles,
+    submenu: [
+      { to: 'actions', label: 'All Actions', icon: Sparkles, end: true },
+      { to: 'slides', label: 'Slide Library', icon: Layers },
+      { to: 'deeplinks', label: 'App Deeplinks', icon: Smartphone },
+    ],
+  },
   { to: 'responses', label: 'Responses', icon: Inbox },
   { to: 'branding', label: 'Branding & landing', icon: Palette },
   { to: 'share', label: 'QR & NFC', icon: QrCode },
@@ -35,6 +46,7 @@ export default function AdminLayout() {
   const { churchId } = useParams();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [church, setChurch] = useState<Church | null>(null);
   const [role, setRole] = useState<MemberRole | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -126,22 +138,61 @@ export default function AdminLayout() {
       </div>
 
       <nav className="flex-1 space-y-0.5 p-3">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              cx(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
-                isActive ? 'bg-brand/10 text-brand' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-              )
-            }
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </NavLink>
-        ))}
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const isSubmenuActive = Boolean(
+            item.submenu &&
+              (location.pathname.includes('/actions') ||
+                location.pathname.includes('/slides') ||
+                location.pathname.includes('/deeplinks')),
+          );
+
+          return (
+            <div key={item.to} className="space-y-0.5">
+              <NavLink
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cx(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
+                    isActive || isSubmenuActive
+                      ? 'bg-brand/10 text-brand font-semibold'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  )
+                }
+              >
+                <Icon className="h-4 w-4" />
+                <span className="flex-1">{item.label}</span>
+              </NavLink>
+
+              {item.submenu && isSubmenuActive && (
+                <div className="ml-5 my-1 space-y-0.5 border-l-2 border-brand/20 pl-2.5 animate-fade-in">
+                  {item.submenu.map((sub) => {
+                    const SubIcon = sub.icon;
+                    return (
+                      <NavLink
+                        key={sub.to}
+                        to={sub.to}
+                        end={sub.end}
+                        className={({ isActive }) =>
+                          cx(
+                            'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                            isActive
+                              ? 'bg-brand text-white shadow-sm'
+                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                          )
+                        }
+                      >
+                        <SubIcon className="h-3.5 w-3.5" />
+                        <span>{sub.label}</span>
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
         <a
           href={`/c/${church.slug}`}
           target="_blank"

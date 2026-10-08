@@ -12,6 +12,8 @@ const ChurchPicker = lazy(() => import('./pages/admin/ChurchPicker'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const Services = lazy(() => import('./pages/admin/Services'));
 const Actions = lazy(() => import('./pages/admin/Actions'));
+const SlidesLibrary = lazy(() => import('./pages/admin/SlidesLibrary'));
+const AppDeeplinks = lazy(() => import('./pages/admin/AppDeeplinks'));
 const Responses = lazy(() => import('./pages/admin/Responses'));
 const Branding = lazy(() => import('./pages/admin/Branding'));
 const Team = lazy(() => import('./pages/admin/Team'));
@@ -48,6 +50,8 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="services" element={<Services />} />
           <Route path="actions" element={<Actions />} />
+          <Route path="slides" element={<SlidesLibrary />} />
+          <Route path="deeplinks" element={<AppDeeplinks />} />
           <Route path="responses" element={<Responses />} />
           <Route path="branding" element={<Branding />} />
           <Route path="team" element={<Team />} />

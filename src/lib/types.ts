@@ -24,6 +24,52 @@ export interface PlanningCenterItem {
   url: string;
 }
 
+export interface AppDeeplink {
+  id: string;
+  label: string;
+  ios_url: string;
+  android_url: string;
+  created_at?: string;
+}
+
+export type SlideCtaStyle = 'button' | 'link' | 'icon';
+export type SlideCtaActionType = 'url' | 'mailto' | 'deeplink' | 'pco';
+
+export interface SlideImageBlock {
+  enabled: boolean;
+  url?: string;
+  is_full_image?: boolean;
+}
+
+export interface SlideTextBlock {
+  enabled: boolean;
+  title?: string;
+  subtitle?: string;
+  body?: string;
+}
+
+export interface SlideCtaBlock {
+  enabled: boolean;
+  style: SlideCtaStyle;
+  icon?: string;
+  label: string;
+  action_type: SlideCtaActionType;
+  target_url?: string;
+  deeplink_id?: string;
+  mailto_email?: string;
+  mailto_subject?: string;
+}
+
+export interface SlideDefinition {
+  id: string;
+  name: string;
+  image: SlideImageBlock;
+  text: SlideTextBlock;
+  cta: SlideCtaBlock;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface LandingConfig {
   welcome_title?: string;
   welcome_message?: string;
@@ -36,6 +82,8 @@ export interface LandingConfig {
   footer_text?: string;
   links?: LandingLink[];
   planning_center?: PlanningCenterConfig;
+  slides?: SlideDefinition[];
+  app_deeplinks?: AppDeeplink[];
 }
 
 export interface Church {
@@ -87,15 +135,25 @@ export interface ServiceTime {
 export interface AnnouncementSlide {
   id: string;
   title?: string;
+  subtitle?: string;
   body?: string; // markdown
   image_url?: string;
+  is_full_image?: boolean;
   cta_label?: string;
   cta_url?: string;
+  cta_style?: SlideCtaStyle;
+  cta_icon?: string;
+  cta_action_type?: SlideCtaActionType;
+  deeplink_id?: string;
+  deeplink_ios_url?: string;
+  deeplink_android_url?: string;
+  slide_id?: string; // Link to slide in church library
 }
 
 export interface AnnouncementContent {
   // Slideshow support (each slide has its own image, text, and CTA)
   slides?: AnnouncementSlide[];
+  selected_slide_ids?: string[];
   auto_advance_seconds?: number;
 
   // Single-slide legacy fields (kept for backwards compatibility)

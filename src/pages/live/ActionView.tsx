@@ -2,13 +2,17 @@ import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLin
 import QRCode from 'qrcode';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
+import { SlideIcon } from '../../components/SlideIcon';
 import { cx } from '../../components/ui';
 import { castVote, fetchPollResults, getVoterToken, submitForm } from '../../lib/api';
 import { fetchBibleVerse, type VerseResult } from '../../lib/bible';
 import { createQrPdfBlob } from '../../lib/pdf';
+import { resolveSlideDeeplinkUrl } from '../../lib/slides';
 import type {
   AnnouncementContent,
+  AnnouncementSlide,
   FormContent,
+  LandingConfig,
   LinkContent,
   LiveAction,
   OfferingContent,
@@ -38,13 +42,29 @@ interface Props {
   churchSlug?: string;
   churchName?: string;
   serviceName?: string;
+  churchLanding?: LandingConfig;
 }
 
-export function ActionView({ action, theme, preview, churchSlug, churchName, serviceName }: Props) {
+export function ActionView({
+  action,
+  theme,
+  preview,
+  churchSlug,
+  churchName,
+  serviceName,
+  churchLanding,
+}: Props) {
   const c = action.content as Record<string, unknown>;
   switch (action.type) {
     case 'announcement':
-      return <Announcement title={action.title} c={c as AnnouncementContent} theme={theme} />;
+      return (
+        <Announcement
+          title={action.title}
+          c={c as AnnouncementContent}
+          theme={theme}
+          churchLanding={churchLanding}
+        />
+      );
     case 'sermon_notes':
       return (
         <SermonNotes
@@ -102,7 +122,17 @@ function Title({ children, eyebrow, theme }: { children: React.ReactNode; eyebro
 }
 
 // ---------------------------------------------------------------------------
-function Announcement({ title, c, theme }: { title: string; c: AnnouncementContent; theme: ThemeTokens }) {
+function Announcement({
+  title,
+  c,
+  theme,
+  churchLanding,
+}: {
+  title: string;
+  c: AnnouncementContent;
+  theme: ThemeTokens;
+  churchLanding?: LandingConfig;
+}) {
   const slides =
     c.slides && c.slides.length > 0
       ? c.slides
@@ -132,7 +162,8 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
 
   const activeIndex = Math.min(currentIndex, slides.length - 1);
   const isMultiSlide = slides.length > 1;
-  const anySlideHasImage = slides.some((s) => Boolean(s.image_url));
+  const activeSlide = slides[activeIndex];
+  const isFullImage = Boolean(activeSlide?.is_full_image);
 
   const prevSlide = () => {
     setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
@@ -141,6 +172,193 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
   const nextSlide = () => {
     setCurrentIndex((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
   };
+
+  // Detect iOS vs Android for app deeplinks
+  const isIos = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
+
+  const getSlideUrl = (slide: AnnouncementSlide): string | undefined => {
+    let raw = slide.cta_url;
+    if (slide.cta_action_type === 'deeplink') {
+      raw = resolveSlideDeeplinkUrl(slide, churchLanding?.app_deeplinks, isIos, isAndroid);
+    }
+    if (!raw) return undefined;
+    if (raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('http://') || raw.startsWith('https://')) {
+      return raw;
+    }
+    if (/^[a-zA-Z0-9.-]+:\/\//.test(raw)) {
+      return raw;
+    }
+    return safeUrl(raw);
+  };
+
+  const renderCtaButton = (slide: AnnouncementSlide, isOverlay = false) => {
+    const url = getSlideUrl(slide);
+    if (!url || !slide.cta_label) return null;
+
+    const style = slide.cta_style || 'button';
+
+    if (isOverlay) {
+      if (style === 'link') {
+        return (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-1.5 text-base font-bold text-white drop-shadow hover:underline"
+          >
+            <span>{slide.cta_label}</span>
+            <SlideIcon name={slide.cta_icon} className="h-4 w-4" />
+          </a>
+        );
+      }
+      if (style === 'icon') {
+        return (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white/95 px-5 py-3 text-base font-semibold text-slate-900 shadow-xl backdrop-blur transition active:scale-[0.98]"
+          >
+            <SlideIcon name={slide.cta_icon} className="h-4 w-4 text-brand" />
+            <span>{slide.cta_label}</span>
+          </a>
+        );
+      }
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-5 py-3.5 text-base font-bold text-white shadow-xl shadow-black/40 transition active:scale-[0.98]"
+        >
+          <SlideIcon name={slide.cta_icon} className="h-4 w-4" />
+          <span>{slide.cta_label}</span>
+        </a>
+      );
+    }
+
+    if (style === 'link') {
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-base font-bold text-brand hover:underline"
+        >
+          <span>{slide.cta_label}</span>
+          <SlideIcon name={slide.cta_icon} className="h-4 w-4" />
+        </a>
+      );
+    }
+
+    if (style === 'icon') {
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-brand/20 bg-brand/5 px-5 py-3.5 text-base font-semibold text-brand transition hover:bg-brand/10 active:scale-[0.98]"
+        >
+          <SlideIcon name={slide.cta_icon} className="h-5 w-5" />
+          <span>{slide.cta_label}</span>
+        </a>
+      );
+    }
+
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={primaryBtn}
+      >
+        <SlideIcon name={slide.cta_icon} className="h-4 w-4" />
+        <span>{slide.cta_label}</span>
+      </a>
+    );
+  };
+
+  // Full image mode for the active slide
+  if (isFullImage) {
+    return (
+      <article className={cx('relative overflow-hidden rounded-3xl shadow-xl bg-black', theme.card)}>
+        {/* Full Image */}
+        <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full overflow-hidden">
+          {slides.map((slide, idx) => (
+            <div
+              key={slide.id || idx}
+              className={cx(
+                'absolute inset-0 transition-opacity duration-700 ease-in-out',
+                idx === activeIndex ? 'opacity-100 z-10' : 'pointer-events-none opacity-0 z-0',
+              )}
+            >
+              {slide.image_url && (
+                <img
+                  src={slide.image_url}
+                  alt={slide.title || title}
+                  className="h-full w-full object-cover"
+                  loading={idx === 0 ? 'eager' : 'lazy'}
+                />
+              )}
+            </div>
+          ))}
+
+          {/* Floating Navigation Controls */}
+          {isMultiSlide && (
+            <div className="absolute top-4 inset-x-4 z-20 flex items-center justify-between">
+              <span className="rounded-full bg-black/60 backdrop-blur px-3 py-1 text-xs font-bold text-white shadow">
+                Slide {activeIndex + 1} of {slides.length}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={prevSlide}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80 active:scale-95 shadow"
+                  aria-label="Previous slide"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={nextSlide}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80 active:scale-95 shadow"
+                  aria-label="Next slide"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Overlay CTA and Dots at bottom */}
+          <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5 sm:p-6 pt-12">
+            {renderCtaButton(activeSlide, true)}
+
+            {isMultiSlide && (
+              <div className="flex items-center justify-center gap-2 pt-1">
+                {slides.map((s, idx) => (
+                  <button
+                    key={s.id || idx}
+                    type="button"
+                    onClick={() => setCurrentIndex(idx)}
+                    className={cx(
+                      'h-2 rounded-full transition-all duration-300',
+                      idx === activeIndex ? 'w-6 bg-brand' : 'w-2 bg-white/50 hover:bg-white/80',
+                    )}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  // Standard slide layout
+  const anySlideHasImage = slides.some((s) => Boolean(s.image_url));
 
   return (
     <article className={cx('overflow-hidden rounded-3xl shadow-xl', theme.card)}>
@@ -152,7 +370,7 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
               key={slide.id || idx}
               className={cx(
                 'absolute inset-0 transition-opacity duration-700 ease-in-out',
-                idx === activeIndex ? 'opacity-100 z-10' : 'pointer-events-none opacity-0 z-0'
+                idx === activeIndex ? 'opacity-100 z-10' : 'pointer-events-none opacity-0 z-0',
               )}
             >
               {slide.image_url && (
@@ -200,7 +418,6 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
         <div className="grid">
           {slides.map((slide, idx) => {
             const isActive = idx === activeIndex;
-            const url = safeUrl(slide.cta_url);
             return (
               <div
                 key={slide.id || idx}
@@ -209,27 +426,24 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
                   'space-y-5 transition-all duration-500 ease-out',
                   isActive
                     ? 'opacity-100 translate-y-0 relative z-10'
-                    : 'pointer-events-none opacity-0 translate-y-2 absolute inset-0 z-0'
+                    : 'pointer-events-none opacity-0 translate-y-2 absolute inset-0 z-0',
                 )}
                 aria-hidden={!isActive}
               >
-                <Title theme={theme} eyebrow={!isMultiSlide ? 'Announcement' : undefined}>
-                  {slide.title || title}
-                </Title>
+                <div>
+                  {slide.subtitle && (
+                    <p className={cx('mb-1 text-xs font-semibold uppercase tracking-wider', theme.muted)}>
+                      {slide.subtitle}
+                    </p>
+                  )}
+                  <Title theme={theme} eyebrow={!isMultiSlide && !slide.subtitle ? 'Announcement' : undefined}>
+                    {slide.title || title}
+                  </Title>
+                </div>
 
                 {slide.body && <Markdown>{slide.body}</Markdown>}
 
-                {url && (
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={primaryBtn}
-                    tabIndex={isActive ? 0 : -1}
-                  >
-                    {slide.cta_label || 'Learn more'} <ExternalLink className="h-4 w-4" />
-                  </a>
-                )}
+                {renderCtaButton(slide)}
               </div>
             );
           })}
@@ -247,7 +461,7 @@ function Announcement({ title, c, theme }: { title: string; c: AnnouncementConte
                   'h-2 rounded-full transition-all duration-300',
                   idx === activeIndex
                     ? 'w-6 bg-brand'
-                    : 'w-2 bg-black/20 hover:bg-black/40 dark:bg-white/30 dark:hover:bg-white/50'
+                    : 'w-2 bg-black/20 hover:bg-black/40 dark:bg-white/30 dark:hover:bg-white/50',
                 )}
                 aria-label={`Go to slide ${idx + 1}`}
               />

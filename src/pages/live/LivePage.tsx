@@ -228,6 +228,7 @@ export default function LivePage() {
                 churchSlug={church.slug}
                 churchName={church.name}
                 serviceName={data!.service?.name}
+                churchLanding={church.landing}
               />
             </div>
           ) : (

@@ -7,6 +7,7 @@ import { brandStyle, describeOffsets, errorMessage } from '../../lib/utils';
 import { ActionView } from '../live/ActionView';
 import { THEMES } from '../live/LivePage';
 import { ContentEditor, defaultContent, FORM_PRESETS, normalizeContent, validateContent } from './ActionEditors';
+import { ActionsSubNav } from './ActionsSubNav';
 import { PageHeader } from './AdminLayout';
 import { useAdmin } from './context';
 
@@ -126,6 +127,8 @@ export default function Actions() {
           </div>
         }
       />
+
+      <ActionsSubNav current="actions" />
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -404,6 +407,7 @@ function ActionModal({
               } as LiveAction}
               theme={THEMES.light}
               preview={true}
+              churchLanding={church.landing}
             />
           </div>
         </Modal>
