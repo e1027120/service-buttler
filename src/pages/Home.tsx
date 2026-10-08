@@ -8,7 +8,6 @@ import {
   QrCode,
   Radio,
   Smartphone,
-  Sparkles,
   Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -51,29 +50,23 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative mx-auto max-w-4xl px-4 pt-16 pb-14 text-center sm:pt-24 sm:pb-20 sm:px-6">
-        {/* Glow badge pill */}
-        <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/80 bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-pink-50/90 px-3.5 py-1 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur">
-          <Sparkles className="h-3.5 w-3.5 text-indigo-600 animate-spin-slow" />
-          <span>Sunday Morning Interactive Platform</span>
-        </div>
-
+      <section className="relative mx-auto max-w-4xl px-4 pt-8 pb-5 text-center sm:pt-12 sm:pb-7 sm:px-6">
         {/* Text mask gradient headline */}
-        <h1 className="mt-7 text-4xl font-extrabold tracking-tight sm:text-6xl sm:leading-[1.12]">
-          The right action on every phone,{' '}
-          <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 bg-clip-text text-transparent">
+        <h1 className="text-3xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl sm:leading-[1.15]">
+          <span className="block text-slate-900">The right action on every phone,</span>
+          <span className="block bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-600 bg-clip-text text-transparent">
             at the exact right minute.
           </span>
         </h1>
 
-        <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600 sm:text-xl">
+        <p className="mx-auto mt-3.5 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
           Attendees scan the seat-back QR code or tap an NFC tag once. As your service unfolds, their screen dynamically synchronizes: sermon notes, live polls, digital giving, and connect cards.
         </p>
 
         {/* Call to action */}
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
           <Link to={user ? '/admin' : '/login'}>
-            <Button size="md" className="gap-2 px-7 py-3.5 text-base font-semibold shadow-xl shadow-brand/25 transition-all hover:shadow-brand/40 hover:-translate-y-0.5">
+            <Button size="md" className="gap-2 px-6 py-3 text-base font-semibold shadow-lg shadow-brand/25 transition-all hover:shadow-brand/40 hover:-translate-y-0.5">
               <span>{user ? 'Go to your dashboard' : 'Get started for free'}</span>
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -82,19 +75,7 @@ export default function Home() {
       </section>
 
       {/* Features Bento Grid */}
-      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-        <div className="mb-8 text-center sm:mb-12">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            Everything your church needs for an{' '}
-            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              engaging gathering
-            </span>
-          </h2>
-          <p className="mt-2 text-sm text-slate-500 sm:text-base">
-            Engineered specifically for the dynamic flow and timing of Sunday services.
-          </p>
-        </div>
-
+      <section className="mx-auto max-w-6xl px-4 pt-2 pb-12 sm:pt-4 sm:pb-16 sm:px-6">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {/* 1. Time Based Cues - Hero Card taking 2 spaces */}
           <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 via-violet-50/40 to-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/5 sm:col-span-2 lg:col-span-2">
