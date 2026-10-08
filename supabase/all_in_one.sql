@@ -793,3 +793,22 @@ exception when duplicate_object then
   -- policies already exist
   null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Realtime: broadcast table changes over WebSockets for live attendees
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'actions') then
+      alter publication supabase_realtime add table public.actions;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'services') then
+      alter publication supabase_realtime add table public.services;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'churches') then
+      alter publication supabase_realtime add table public.churches;
+    end if;
+  end if;
+end $$;
+

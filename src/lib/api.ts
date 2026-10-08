@@ -46,7 +46,12 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-export async function fetchLivePage(church: string, service?: string, previewAt?: string): Promise<LivePage | null> {
+export async function fetchLivePage(
+  church: string,
+  service?: string,
+  previewAt?: string,
+  bypassCache = false
+): Promise<LivePage | null> {
   // Previews (time travel) require an authenticated church member -> direct RPC with session
   if (previewAt) {
     return rpc<LivePage | null>('get_live_page', {
@@ -55,11 +60,12 @@ export async function fetchLivePage(church: string, service?: string, previewAt?
       p_at: previewAt,
     });
   }
-  const path = `/api/live/${encodeURIComponent(church)}${service ? `/${encodeURIComponent(service)}` : ''}`;
+  const basePath = `/api/live/${encodeURIComponent(church)}${service ? `/${encodeURIComponent(service)}` : ''}`;
+  const path = bypassCache ? `${basePath}?_t=${Date.now()}` : basePath;
   return withFallback(
     async () => {
       try {
-        return await request<LivePage>(path);
+        return await request<LivePage>(path, bypassCache ? { cache: 'no-cache' } : undefined);
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) return null;
         throw e;

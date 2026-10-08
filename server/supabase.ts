@@ -51,14 +51,29 @@ export async function rpc<T>(env: Env, fn: string, args: Record<string, unknown>
   return body as T;
 }
 
-export function json(data: unknown, init: ResponseInit & { cacheSeconds?: number } = {}): Response {
-  const { cacheSeconds, ...rest } = init;
+export function json(
+  data: unknown,
+  init: ResponseInit & {
+    cacheSeconds?: number;
+    clientCacheSeconds?: number;
+    edgeCacheSeconds?: number;
+  } = {}
+): Response {
+  const { cacheSeconds, clientCacheSeconds, edgeCacheSeconds, ...rest } = init;
   const headers = new Headers(rest.headers);
   headers.set('Content-Type', 'application/json; charset=utf-8');
-  headers.set(
-    'Cache-Control',
-    cacheSeconds ? `public, max-age=${cacheSeconds}, s-maxage=${cacheSeconds}` : 'no-store',
-  );
+
+  const edgeMax = edgeCacheSeconds ?? cacheSeconds;
+  const clientMax = clientCacheSeconds ?? (edgeMax ? 0 : undefined);
+
+  if (edgeMax !== undefined) {
+    headers.set(
+      'Cache-Control',
+      `public, max-age=${clientMax ?? 0}, s-maxage=${edgeMax}, stale-while-revalidate=5, must-revalidate`
+    );
+  } else {
+    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  }
   return new Response(JSON.stringify(data), { ...rest, headers });
 }
 

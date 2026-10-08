@@ -9,6 +9,8 @@ import { brandStyle, formatInZone } from '../../lib/utils';
 import { ActionView, type ThemeTokens } from './ActionView';
 import { NotesHistoryModal } from './NotesHistoryModal';
 
+import { supabase } from '../../lib/supabase';
+
 export const THEMES: Record<'light' | 'dark' | 'brand', ThemeTokens> = {
   light: {
     page: 'bg-slate-100 text-slate-900',
@@ -36,7 +38,7 @@ export const THEMES: Record<'light' | 'dark' | 'brand', ThemeTokens> = {
   },
 };
 
-const POLL_MS = 30_000;
+const POLL_MS = 15_000;
 
 export default function LivePage() {
   const { churchSlug = '', serviceSlug } = useParams();
@@ -51,9 +53,9 @@ export default function LivePage() {
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (bypassCache = false) => {
     try {
-      const page = await fetchLivePage(churchSlug, serviceSlug, previewAt);
+      const page = await fetchLivePage(churchSlug, serviceSlug, previewAt, bypassCache);
       if (!page) {
         setStatus('notfound');
         return;
@@ -67,18 +69,41 @@ export default function LivePage() {
     }
   }, [churchSlug, serviceSlug, previewAt]);
 
-  // Poll for live changes (disabled inside admin iframe preview)
+  // Real-time updates via Supabase WebSocket (channel listening to table changes)
+  useEffect(() => {
+    if (isEmbedPreview || !churchSlug) return;
+
+    // Supabase Realtime channel for instant reactivity (<200ms)
+    const channel = supabase
+      .channel(`live:${churchSlug}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'actions' }, () => {
+        load(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
+        load(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'churches' }, () => {
+        load(true);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [churchSlug, isEmbedPreview, load]);
+
+  // Poll for live changes as fallback (disabled inside admin iframe preview)
   useEffect(() => {
     load();
     if (isEmbedPreview) return;
-    const id = setInterval(load, POLL_MS);
-    const onVisible = () => document.visibilityState === 'visible' && load();
+    const id = setInterval(() => load(false), POLL_MS);
+    const onVisible = () => document.visibilityState === 'visible' && load(true);
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', load);
+    window.addEventListener('online', () => load(true));
     return () => {
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', load);
+      window.removeEventListener('online', () => load(true));
     };
   }, [load, isEmbedPreview]);
 
@@ -92,9 +117,9 @@ export default function LivePage() {
       .filter((t) => Number.isFinite(t) && t > now);
     if (futureExpirations.length > 0) {
       const nextExpiry = Math.min(...futureExpirations);
-      const ms = Math.max(2000, nextExpiry - now + 1500);
+      const ms = Math.max(1000, nextExpiry - now + 500);
       if (ms < POLL_MS) {
-        timer.current = setTimeout(load, ms);
+        timer.current = setTimeout(() => load(true), ms);
       }
     }
     return () => clearTimeout(timer.current);
@@ -136,7 +161,7 @@ export default function LivePage() {
         <h1 className="text-xl font-bold text-slate-800">{status === 'notfound' ? 'Page not found' : 'We could not load this page'}</h1>
         <p className="text-slate-500">{status === 'notfound' ? 'Please check the QR code or link.' : 'Check your connection and try again.'}</p>
         {status === 'error' && (
-          <button onClick={load} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+          <button onClick={() => load(true)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
             Retry
           </button>
         )}

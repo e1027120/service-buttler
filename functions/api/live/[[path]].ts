@@ -23,8 +23,8 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
         p_church_slug: church,
         p_service_slug: service ?? null,
       });
-      if (!page) return json({ error: 'Church not found' }, { status: 404, cacheSeconds: 60 });
-      return json(page, { cacheSeconds: 15 });
+      if (!page) return json({ error: 'Church not found' }, { status: 404, edgeCacheSeconds: 15, clientCacheSeconds: 0 });
+      return json(page, { edgeCacheSeconds: 5, clientCacheSeconds: 0 });
     });
   } catch (err) {
     return errorResponse(err);
