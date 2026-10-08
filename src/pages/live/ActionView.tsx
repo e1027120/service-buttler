@@ -543,11 +543,25 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: number; theme: ThemeTokens }) {
+  const isFullImage = Boolean(slide.is_full_image && slide.image_url);
   const hasBackground = Boolean(slide.image_url);
-  const hasTitle = Boolean(slide.title?.trim());
-  const hasVerse = Boolean(slide.verse_reference?.trim());
-  const hasBody = Boolean(slide.body?.trim());
+  const hasTitle = Boolean(!isFullImage && slide.title?.trim());
+  const hasVerse = Boolean(!isFullImage && slide.verse_reference?.trim());
+  const hasBody = Boolean(!isFullImage && slide.body?.trim());
   const hasAnyText = hasTitle || hasVerse || hasBody;
+
+  if (isFullImage) {
+    return (
+      <div className="relative overflow-hidden rounded-2xl border border-black/5 shadow-sm sm:rounded-3xl dark:border-white/10 bg-black/5 dark:bg-white/5">
+        <img
+          src={slide.image_url}
+          alt={slide.title || `Slide ${index + 1}`}
+          className="w-full h-auto max-h-[70vh] object-contain sm:object-cover mx-auto rounded-2xl sm:rounded-3xl"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -674,17 +688,19 @@ function SermonNotes({
   useEffect(() => {
     const t = setTimeout(() => {
       saveSermonNote(id, notes, {
+        sermonId: c.sermon_id,
         churchSlug,
         churchName,
         serviceName,
         title,
         speaker: c.speaker,
         mainVerse,
+        slides: slides || undefined,
         fullSermonText: fullText,
       });
     }, 300);
     return () => clearTimeout(t);
-  }, [id, notes, churchSlug, churchName, serviceName, title, c.speaker, mainVerse, fullText]);
+  }, [id, notes, churchSlug, churchName, serviceName, title, c.speaker, c.sermon_id, mainVerse, slides, fullText]);
 
   const share = async () => {
     if (navigator.share) {

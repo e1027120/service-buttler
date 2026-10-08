@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   CalendarClock,
   ChevronDown,
   ExternalLink,
@@ -33,6 +34,7 @@ const NAV = [
     submenu: [
       { to: 'actions', label: 'All Actions', icon: Sparkles, end: true },
       { to: 'slides', label: 'Slide Library', icon: Layers },
+      { to: 'sermons', label: 'Sermon Notes', icon: BookOpen },
       { to: 'deeplinks', label: 'App Deeplinks', icon: Smartphone },
     ],
   },
@@ -144,6 +146,7 @@ export default function AdminLayout() {
             item.submenu &&
               (location.pathname.includes('/actions') ||
                 location.pathname.includes('/slides') ||
+                location.pathname.includes('/sermons') ||
                 location.pathname.includes('/deeplinks')),
           );
 

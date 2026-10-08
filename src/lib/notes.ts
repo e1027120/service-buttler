@@ -1,5 +1,8 @@
+import type { SermonSlide } from './types';
+
 export interface SavedSermonNote {
   actionId: string;
+  sermonId?: string;
   churchSlug?: string;
   churchName?: string;
   serviceName?: string;
@@ -8,6 +11,7 @@ export interface SavedSermonNote {
   mainVerse?: string;
   date: string; // ISO date string or formatted date
   notes: string;
+  slides?: SermonSlide[];
   fullSermonText?: string;
   updatedAt: number; // timestamp
 }
@@ -22,12 +26,14 @@ export function saveSermonNote(
   actionId: string,
   notes: string,
   meta?: {
+    sermonId?: string;
     churchSlug?: string;
     churchName?: string;
     serviceName?: string;
     title: string;
     speaker?: string;
     mainVerse?: string;
+    slides?: SermonSlide[];
     fullSermonText?: string;
   }
 ) {
@@ -48,6 +54,7 @@ export function saveSermonNote(
 
     const updatedRecord: SavedSermonNote = {
       actionId,
+      sermonId: meta?.sermonId ?? existing.sermonId,
       churchSlug: meta?.churchSlug ?? existing.churchSlug,
       churchName: meta?.churchName ?? existing.churchName,
       serviceName: meta?.serviceName ?? existing.serviceName,
@@ -56,6 +63,7 @@ export function saveSermonNote(
       mainVerse: meta?.mainVerse ?? existing.mainVerse,
       date: existing.date || new Date().toISOString(),
       notes,
+      slides: meta?.slides ?? existing.slides,
       fullSermonText: meta?.fullSermonText ?? existing.fullSermonText,
       updatedAt: Date.now(),
     };

@@ -1,12 +1,13 @@
-import { Layers, Smartphone, Sparkles } from 'lucide-react';
+import { BookOpen, Layers, Smartphone, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { cx } from '../../components/ui';
 
-export function ActionsSubNav({ current }: { current: 'actions' | 'slides' | 'deeplinks' }) {
+export function ActionsSubNav({ current }: { current: 'actions' | 'slides' | 'sermons' | 'deeplinks' }) {
   const { churchId } = useParams();
   const tabs = [
     { id: 'actions', to: `/admin/${churchId}/actions`, label: 'All Actions', icon: Sparkles },
     { id: 'slides', to: `/admin/${churchId}/slides`, label: 'Slide Library', icon: Layers },
+    { id: 'sermons', to: `/admin/${churchId}/sermons`, label: 'Sermon Notes', icon: BookOpen },
     { id: 'deeplinks', to: `/admin/${churchId}/deeplinks`, label: 'App Deeplinks', icon: Smartphone },
   ];
 

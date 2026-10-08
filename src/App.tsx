@@ -13,6 +13,7 @@ const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const Services = lazy(() => import('./pages/admin/Services'));
 const Actions = lazy(() => import('./pages/admin/Actions'));
 const SlidesLibrary = lazy(() => import('./pages/admin/SlidesLibrary'));
+const SermonNotesLibrary = lazy(() => import('./pages/admin/SermonNotesLibrary'));
 const AppDeeplinks = lazy(() => import('./pages/admin/AppDeeplinks'));
 const Responses = lazy(() => import('./pages/admin/Responses'));
 const Branding = lazy(() => import('./pages/admin/Branding'));
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="services" element={<Services />} />
           <Route path="actions" element={<Actions />} />
           <Route path="slides" element={<SlidesLibrary />} />
+          <Route path="sermons" element={<SermonNotesLibrary />} />
           <Route path="deeplinks" element={<AppDeeplinks />} />
           <Route path="responses" element={<Responses />} />
           <Route path="branding" element={<Branding />} />

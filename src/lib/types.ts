@@ -70,6 +70,42 @@ export interface SlideDefinition {
   updated_at?: string;
 }
 
+export interface SermonSlideImageBlock {
+  enabled: boolean;
+  url?: string;
+  is_full_image?: boolean;
+}
+
+export interface SermonSlideTextBlock {
+  enabled: boolean;
+  title?: string; // Main Point (optional)
+  verse_reference?: string; // Bible Verse (optional)
+  body?: string; // Body Text RTE (optional)
+}
+
+export interface SermonSlideDefinition {
+  id: string;
+  name?: string;
+  image: SermonSlideImageBlock;
+  text: SermonSlideTextBlock;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SermonRecord {
+  id: string;
+  title: string;
+  speaker?: string;
+  date?: string; // YYYY-MM-DD
+  main_verse?: string;
+  description?: string;
+  slides: SermonSlide[];
+  allow_personal_notes?: boolean;
+  service_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface LandingConfig {
   welcome_title?: string;
   welcome_message?: string;
@@ -83,6 +119,7 @@ export interface LandingConfig {
   links?: LandingLink[];
   planning_center?: PlanningCenterConfig;
   slides?: SlideDefinition[];
+  sermons?: SermonRecord[];
   app_deeplinks?: AppDeeplink[];
 }
 
@@ -170,6 +207,8 @@ export interface SermonSlide {
   verse_text?: string; // Optional manual override or cached verse text
   body?: string; // Optional explanatory notes/bullet points (markdown)
   image_url?: string; // Background / feature image for the slide
+  is_full_image?: boolean;
+  slide_id?: string;
 }
 
 export interface SermonNotesContent {
@@ -177,6 +216,7 @@ export interface SermonNotesContent {
   main_verse?: string; // Primary sermon scripture, e.g. "Romans 8:18–28"
   slides?: SermonSlide[]; // Sermon slides displayed sequentially one under the other
   allow_personal_notes?: boolean;
+  sermon_id?: string; // Optional link to SermonRecord in library
 
   // Backwards compatibility for older single markdown body
   scripture?: string;

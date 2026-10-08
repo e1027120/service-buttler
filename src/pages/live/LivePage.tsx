@@ -241,6 +241,8 @@ export default function LivePage() {
           open={notesModalOpen}
           onClose={() => setNotesModalOpen(false)}
           churchName={church.name}
+          churchSlug={church.slug}
+          landingConfig={landing}
         />
 
         {/* Footer */}
