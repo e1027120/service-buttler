@@ -109,7 +109,7 @@ export default function Actions() {
   const load = useCallback(async () => {
     const [acts, srvs] = await Promise.all([
       supabase.from('actions').select('*').eq('church_id', church.id).order('priority', { ascending: false }).order('sort_order').order('created_at'),
-      supabase.from('services').select('*').eq('church_id', church.id).order('name'),
+      supabase.from('services').select('*, service_times(*)').eq('church_id', church.id).order('name'),
     ]);
     setActions(unwrap(acts) as Action[]);
     const sList = unwrap(srvs) as Service[];
