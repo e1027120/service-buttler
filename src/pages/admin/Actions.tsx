@@ -284,6 +284,7 @@ export default function Actions() {
           onPin={pin}
           liveActionId={liveActionId}
           onEditAction={(a) => setEditing(a)}
+          timezone={church.timezone}
         />
       )}
 
