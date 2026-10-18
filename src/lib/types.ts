@@ -82,6 +82,7 @@ export interface SermonSlideTextBlock {
   slide_number?: string; // Custom number or label, e.g. "1", "A", "Part 2"
   title?: string; // Main Point (optional)
   verse_reference?: string; // Bible Verse (optional)
+  verse_translation?: string; // Bible translation (e.g. "web", "kjv")
   body?: string; // Body Text RTE (optional)
 }
 
@@ -227,6 +228,7 @@ export interface SermonSlide {
   slide_number?: string; // Custom number/label, e.g. "1", "Point 1", "I", "Intro"
   title?: string; // Point or headline, e.g. "Present struggles are temporary"
   verse_reference?: string; // e.g. "Romans 8:18" or "John 3:16"
+  verse_translation?: string; // e.g. "web", "kjv", "bbe"
   verse_text?: string; // Optional manual override or cached verse text
   body?: string; // Optional explanatory notes/bullet points (markdown)
   image_url?: string; // Background / feature image for the slide

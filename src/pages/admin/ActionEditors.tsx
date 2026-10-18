@@ -193,6 +193,7 @@ export function normalizeContent(type: ActionType, c: C): C {
         ...sl,
         title: sl.title?.trim() || undefined,
         verse_reference: sl.verse_reference?.trim() || undefined,
+        verse_translation: sl.verse_translation?.trim() || undefined,
         verse_text: sl.verse_text?.trim() || undefined,
         body: sl.body?.trim() || undefined,
         image_url: sl.image_url?.trim() || undefined,

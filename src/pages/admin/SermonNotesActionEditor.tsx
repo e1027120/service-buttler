@@ -159,7 +159,7 @@ export function SermonNotesActionEditor({
                     </p>
                     {slide.verse_reference && (
                       <p className="text-[10px] text-brand truncate font-medium">
-                        {slide.verse_reference}
+                        {slide.verse_reference} · {(slide.verse_translation || 'web').toUpperCase()}
                       </p>
                     )}
                   </div>

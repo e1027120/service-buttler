@@ -286,7 +286,7 @@ export function SermonEditorModal({
                         )}
                         {slide.verse_reference && (
                           <Badge tone="brand">
-                            {slide.verse_reference}
+                            {slide.verse_reference} · {(slide.verse_translation || 'web').toUpperCase()}
                           </Badge>
                         )}
                       </div>

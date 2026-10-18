@@ -21,12 +21,13 @@ import {
   Field,
   Input,
   Modal,
+  Select,
   Textarea,
   Toggle,
   cx,
   useToast,
 } from '../../components/ui';
-import { fetchBibleVerse, type VerseResult } from '../../lib/bible';
+import { fetchBibleVerse, SUPPORTED_TRANSLATIONS, type VerseResult } from '../../lib/bible';
 import { sermonDefinitionToSlide, sermonSlideToDefinition } from '../../lib/sermons';
 import type { Church, SermonSlide, SermonSlideDefinition } from '../../lib/types';
 import { errorMessage } from '../../lib/utils';
@@ -68,17 +69,18 @@ export function SermonSlideEditorModal({
     setActiveTab('editor');
   }, [slide]);
 
-  // Lookup bible verse when user enters reference
+  // Lookup bible verse when user enters reference or changes translation
   useEffect(() => {
     const ref = data?.text?.verse_reference?.trim();
     if (!ref || ref.length < 3) {
       setVersePreview(null);
       return;
     }
+    const trans = data?.text?.verse_translation || 'web';
     let active = true;
     const timer = setTimeout(() => {
       setLoadingVerse(true);
-      fetchBibleVerse(ref)
+      fetchBibleVerse(ref, trans)
         .then((res) => {
           if (active) setVersePreview(res);
         })
@@ -94,7 +96,7 @@ export function SermonSlideEditorModal({
       active = false;
       clearTimeout(timer);
     };
-  }, [data?.text?.verse_reference]);
+  }, [data?.text?.verse_reference, data?.text?.verse_translation]);
 
   if (!data) return null;
 
@@ -363,13 +365,31 @@ export function SermonSlideEditorModal({
                     />
                   </Field>
 
-                  <Field label="Bible Verse Reference (optional)" hint="e.g. Romans 8:18 or John 3:16">
-                    <Input
-                      value={data.text.verse_reference || ''}
-                      onChange={(e) => updateText({ verse_reference: e.target.value })}
-                      placeholder="e.g. Romans 8:18"
-                    />
-                  </Field>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <Field label="Bible Verse Reference (optional)" hint="e.g. Romans 8:18 or John 3:16">
+                        <Input
+                          value={data.text.verse_reference || ''}
+                          onChange={(e) => updateText({ verse_reference: e.target.value })}
+                          placeholder="e.g. Romans 8:18"
+                        />
+                      </Field>
+                    </div>
+                    <div>
+                      <Field label="Bible Translation" hint="Shown to attendees">
+                        <Select
+                          value={data.text.verse_translation || 'web'}
+                          onChange={(e) => updateText({ verse_translation: e.target.value })}
+                        >
+                          {SUPPORTED_TRANSLATIONS.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.shortName} ({t.name})
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    </div>
+                  </div>
 
                   {/* Live Bible verse preview card if available */}
                   {data.text.verse_reference && (
@@ -379,9 +399,9 @@ export function SermonSlideEditorModal({
                           <BookOpen className="h-3.5 w-3.5" />
                           {versePreview?.reference || data.text.verse_reference}
                         </span>
-                        {versePreview?.translation_name && (
-                          <span className="text-[10px] text-slate-500">{versePreview.translation_name}</span>
-                        )}
+                        <span className="rounded-md border border-brand/20 bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-brand">
+                          {(versePreview?.translation_id || data.text.verse_translation || 'web').toUpperCase()}
+                        </span>
                       </div>
                       {loadingVerse ? (
                         <p className="italic text-slate-400">Looking up verse scripture…</p>
@@ -513,9 +533,14 @@ export function SermonSlideEditorModal({
 
                     {data.text.verse_reference && (
                       <div className="rounded-xl border border-brand/20 bg-brand/5 p-3 text-xs">
-                        <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-brand mb-1">
-                          <BookOpen className="h-3.5 w-3.5" />
-                          {data.text.verse_reference}
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-brand">
+                            <BookOpen className="h-3.5 w-3.5" />
+                            {data.text.verse_reference}
+                          </div>
+                          <span className="rounded-md border border-brand/20 bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-brand">
+                            {(versePreview?.translation_id || data.text.verse_translation || 'web').toUpperCase()}
+                          </span>
                         </div>
                         {versePreview?.text && (
                           <p className="italic text-slate-700 font-serif">“{versePreview.text}”</p>

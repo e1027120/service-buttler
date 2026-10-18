@@ -694,7 +694,7 @@ export function NotesHistoryModal({
                                   </div>
                                   {sl.verse_reference && (
                                     <p className="font-semibold text-brand text-[11px]">
-                                      {sl.verse_reference}
+                                      {sl.verse_reference} · {(sl.verse_translation || 'web').toUpperCase()}
                                     </p>
                                   )}
                                   {sl.body && (

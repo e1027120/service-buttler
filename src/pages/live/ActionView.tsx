@@ -5,7 +5,7 @@ import { Markdown } from '../../components/Markdown';
 import { SlideIcon } from '../../components/SlideIcon';
 import { cx } from '../../components/ui';
 import { castVote, fetchPollResults, getVoterToken, submitForm } from '../../lib/api';
-import { fetchBibleVerse, SUPPORTED_TRANSLATIONS, type VerseResult } from '../../lib/bible';
+import { fetchBibleVerse, type VerseResult } from '../../lib/bible';
 import { createQrPdfBlob } from '../../lib/pdf';
 import { resolveSlideDeeplinkUrl } from '../../lib/slides';
 import type {
@@ -553,14 +553,15 @@ function Announcement({
 
 // ---------------------------------------------------------------------------
 // Inline Bible Verse renderer with automatic API fetching and caching
-function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTokens }) {
-  const [translation, setTranslation] = useState(() => {
-    try {
-      return localStorage.getItem('sb_bible_trans') || 'web';
-    } catch {
-      return 'web';
-    }
-  });
+function BibleVerseBox({
+  reference,
+  translation = 'web',
+  theme,
+}: {
+  reference: string;
+  translation?: string;
+  theme: ThemeTokens;
+}) {
   const [verse, setVerse] = useState<VerseResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -590,12 +591,7 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
     };
   }, [reference, translation]);
 
-  const onTranslationChange = (newT: string) => {
-    setTranslation(newT);
-    try {
-      localStorage.setItem('sb_bible_trans', newT);
-    } catch {}
-  };
+  const transUpper = (verse?.translation_id || translation || 'web').toUpperCase();
 
   return (
     <div className={cx('rounded-2xl border border-brand/20 bg-brand/5 p-4 sm:p-5 transition-all', theme.card)}>
@@ -604,21 +600,9 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
           <BookOpen className="h-3.5 w-3.5" />
           {verse?.reference || reference}
         </span>
-        <div className="flex items-center gap-1">
-          <select
-            value={translation}
-            onChange={(e) => onTranslationChange(e.target.value)}
-            className="cursor-pointer rounded-lg border border-black/10 dark:border-white/10 bg-white/80 dark:bg-slate-800/80 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 outline-none hover:bg-white dark:hover:bg-slate-800 transition"
-            title="Choose Bible Translation"
-            aria-label="Choose Bible Translation"
-          >
-            {SUPPORTED_TRANSLATIONS.map((t) => (
-              <option key={t.id} value={t.id} className="bg-white text-slate-900">
-                {t.shortName}
-              </option>
-            ))}
-          </select>
-        </div>
+        <span className="rounded-md border border-brand/20 bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-brand">
+          {transUpper}
+        </span>
       </div>
 
       {loading && (
@@ -777,7 +761,11 @@ function SermonSlideCard({
 
         {/* Bible Verse Reference Box */}
         {hasVerse && (
-          <BibleVerseBox reference={slide.verse_reference!} theme={theme} />
+          <BibleVerseBox
+            reference={slide.verse_reference!}
+            translation={slide.verse_translation || 'web'}
+            theme={theme}
+          />
         )}
 
         {/* Explanatory notes / Markdown body */}
