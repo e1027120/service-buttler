@@ -147,6 +147,9 @@ export function ActionView({
       case 'offering':
         return <Offering title={action.title} c={c as OfferingContent} theme={theme} />;
       case 'form':
+        if ((c as Record<string, unknown>)?.form_type === 'question') {
+          return <QuestionCard id={action.id} title={action.title} c={c as QuestionContent} theme={theme} preview={preview} />;
+        }
         return <Form id={action.id} title={action.title} c={c as FormContent} theme={theme} preview={preview} />;
       case 'question':
         return <QuestionCard id={action.id} title={action.title} c={c as QuestionContent} theme={theme} preview={preview} />;

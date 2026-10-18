@@ -319,7 +319,9 @@ export default function Actions() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold">{a.title}</span>
-                        <Badge tone="brand">{a.type.replace('_', ' ')}</Badge>
+                        <Badge tone="brand">
+                          {((a.content as Record<string, unknown>)?.form_type === 'question' ? 'question' : a.type).replace('_', ' ')}
+                        </Badge>
                         {isPinned && <Badge tone="red">LIVE PINNED</Badge>}
                         {!a.is_active && <Badge tone="amber">Paused</Badge>}
                         {a.priority > 0 && <Badge>Priority {a.priority}</Badge>}
@@ -395,10 +397,16 @@ function ActionModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const [form, setForm] = useState<Partial<Action>>(() => ({
-    ...initial,
-    content: initial.content || defaultContent(initial.type || 'announcement'),
-  }));
+  const [form, setForm] = useState<Partial<Action>>(() => {
+    const isQuestionFallback =
+      initial.type === 'form' && (initial.content as Record<string, unknown>)?.form_type === 'question';
+    const effectiveType = isQuestionFallback ? 'question' : (initial.type || 'announcement');
+    return {
+      ...initial,
+      type: effectiveType,
+      content: initial.content || defaultContent(effectiveType),
+    };
+  });
   const [busy, setBusy] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -451,6 +459,24 @@ function ActionModal({
       toast('Action saved');
       onSaved();
     } catch (e) {
+      if (type === 'question' && errorMessage(e).toLowerCase().includes('action_type')) {
+        // Fallback for database instances where ALTER TYPE action_type ADD VALUE 'question' has not run yet
+        const fallbackPayload = {
+          ...payload,
+          type: 'form',
+          content: { ...payload.content, form_type: 'question' },
+        };
+        try {
+          if (initial.id) unwrap(await supabase.from('actions').update(fallbackPayload).eq('id', initial.id));
+          else unwrap(await supabase.from('actions').insert(fallbackPayload));
+          toast('Action saved');
+          onSaved();
+          return;
+        } catch (err2) {
+          toast(errorMessage(err2), 'error');
+          return;
+        }
+      }
       toast(errorMessage(e), 'error');
     } finally {
       setBusy(false);

@@ -85,8 +85,7 @@ export default function Responses() {
       supabase
         .from('actions')
         .select('*')
-        .eq('church_id', church.id)
-        .in('type', ['form', 'question', 'poll']),
+        .eq('church_id', church.id),
       supabase
         .from('action_responses')
         .select('*')
@@ -99,13 +98,20 @@ export default function Responses() {
         .eq('church_id', church.id),
     ]);
 
-    const actsList = (unwrap(acts) as Action[]) || [];
-    setActions(actsList);
+    const allActs = (unwrap(acts) as Action[]) || [];
+    const relevantActs = allActs.filter(
+      (a) =>
+        a.type === 'form' ||
+        a.type === 'poll' ||
+        (a.type as string) === 'question' ||
+        (a.content as Record<string, unknown>)?.form_type === 'question',
+    );
+    setActions(relevantActs);
     setResponses((unwrap(resp) as ActionResponse[]) || []);
     setServices((unwrap(srvs) as Service[]) || []);
 
     // Load poll votes for any polls in this church
-    const pollIds = actsList.filter((a) => a.type === 'poll').map((a) => a.id);
+    const pollIds = relevantActs.filter((a) => a.type === 'poll').map((a) => a.id);
     if (pollIds.length > 0) {
       const { data: votesData } = await supabase
         .from('poll_votes')
@@ -173,7 +179,10 @@ export default function Responses() {
     if (!responses) return [];
     return responses.filter((r) => {
       const act = actions.find((a) => a.id === r.action_id);
-      const isQuestion = act?.type === 'question' || r.payload.question !== undefined;
+      const isQuestion =
+        (act?.type as string) === 'question' ||
+        (act?.content as Record<string, unknown>)?.form_type === 'question' ||
+        r.payload.question !== undefined;
 
       // Tab filter
       if (tab === 'questions' && !isQuestion) return false;
@@ -476,7 +485,10 @@ function ResponseCard({
   onRemove: (r: ActionResponse) => void;
 }) {
   const act = actions.find((a) => a.id === r.action_id);
-  const isQuestion = act?.type === 'question' || r.payload.question !== undefined;
+  const isQuestion =
+    (act?.type as string) === 'question' ||
+    (act?.content as Record<string, unknown>)?.form_type === 'question' ||
+    r.payload.question !== undefined;
   const isAnswered = r.payload.answered === 'true';
   const serviceMatch = getServiceMatch(r.created_at, services, church.timezone);
 
