@@ -1,9 +1,10 @@
-import { CalendarClock, ExternalLink, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarClock, ExternalLink, Eye, Plus, Radio, RefreshCw, Trash2 } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
+import { DEFAULT_WELCOME_HIGHLIGHTS, FirstTimeModal } from '../../components/FirstTimeModal';
 import { Markdown } from '../../components/Markdown';
 import { Button, Field, Input, Select, Textarea, Toggle, cx, useToast } from '../../components/ui';
 import { supabase, unwrap } from '../../lib/supabase';
-import type { LandingConfig, LandingLink } from '../../lib/types';
+import type { LandingConfig, LandingLink, WelcomeModalHighlight, WelcomeModalIcon } from '../../lib/types';
 import { brandStyle, errorMessage, landingUrl, timezones } from '../../lib/utils';
 import { THEMES } from '../live/LivePage';
 import { PageHeader } from './AdminLayout';
@@ -20,8 +21,37 @@ export default function Branding() {
   const [accent, setAccent] = useState(church.accent_color);
   const [landing, setLanding] = useState<LandingConfig>(church.landing || {});
   const [busy, setBusy] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const setL = (patch: Partial<LandingConfig>) => setLanding((l) => ({ ...l, ...patch }));
+
+  const resetModalVersion = async () => {
+    if (!canAdmin) return;
+    const nextVersion = (landing.welcome_modal?.version || 1) + 1;
+    const updatedLanding: LandingConfig = {
+      ...landing,
+      welcome_modal: {
+        ...(landing.welcome_modal || {}),
+        version: nextVersion,
+      },
+    };
+    setLanding(updatedLanding);
+    setBusy(true);
+    try {
+      unwrap(
+        await supabase
+          .from('churches')
+          .update({ landing: updatedLanding })
+          .eq('id', church.id),
+      );
+      toast(`Modal reset (v${nextVersion})! It will appear again for all attendees on their next visit.`);
+      await reloadChurch();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -128,6 +158,142 @@ export default function Branding() {
             <div className="space-y-3 pt-2">
               <Toggle checked={landing.show_service_name !== false} onChange={(b) => setL({ show_service_name: b })} label="Show service name in header" />
               <Toggle checked={landing.show_next_service !== false} onChange={(b) => setL({ show_next_service: b })} label="Show next upcoming service countdown" />
+            </div>
+          </section>
+
+          <section className="card p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-base font-semibold">First-Time & Announcement Modal</h2>
+                <p className="text-xs text-slate-500">
+                  Welcome popup shown to attendees on their first visit, or broadcast again for new announcements.
+                </p>
+              </div>
+              <Toggle
+                checked={landing.welcome_modal?.enabled !== false}
+                onChange={(en) =>
+                  setL({
+                    welcome_modal: {
+                      ...(landing.welcome_modal || {}),
+                      enabled: en,
+                    },
+                  })
+                }
+                label="Enabled"
+              />
+            </div>
+
+            {/* Reset / Broadcast banner */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4">
+              <div className="max-w-md">
+                <h4 className="text-sm font-bold text-amber-950 flex items-center gap-1.5">
+                  <Radio className="h-4 w-4 text-amber-600 animate-pulse" />
+                  Broadcast & Show Again to All Attendees
+                </h4>
+                <p className="text-xs text-amber-800/80 mt-1">
+                  Current version: <strong>v{landing.welcome_modal?.version || 1}</strong>.
+                  When you post a new announcement or want everyone to see the modal again (even if they previously dismissed it), click below to reset the dismissal status for all attendees.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPreviewModalOpen(true)}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Preview Modal
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={resetModalVersion}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Reset for All
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Modal title">
+                <Input
+                  value={landing.welcome_modal?.title || ''}
+                  onChange={(e) =>
+                    setL({
+                      welcome_modal: {
+                        ...(landing.welcome_modal || {}),
+                        title: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder={`Welcome to ${name || 'our church'}`}
+                />
+              </Field>
+              <Field label="Modal subtitle / description">
+                <Input
+                  value={landing.welcome_modal?.subtitle || ''}
+                  onChange={(e) =>
+                    setL({
+                      welcome_modal: {
+                        ...(landing.welcome_modal || {}),
+                        subtitle: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="Your live interactive service companion"
+                />
+              </Field>
+            </div>
+
+            <Field label="Dismiss button label">
+              <Input
+                value={landing.welcome_modal?.button_label || ''}
+                onChange={(e) =>
+                  setL({
+                    welcome_modal: {
+                      ...(landing.welcome_modal || {}),
+                      button_label: e.target.value,
+                    },
+                  })
+                }
+                placeholder="Got it, let's begin"
+              />
+            </Field>
+
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Highlight Cards / Points
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setL({
+                      welcome_modal: {
+                        ...(landing.welcome_modal || {}),
+                        highlights: DEFAULT_WELCOME_HIGHLIGHTS,
+                      },
+                    })
+                  }
+                  className="text-xs text-brand hover:underline font-medium"
+                >
+                  Load defaults
+                </button>
+              </div>
+
+              <HighlightsEditor
+                highlights={landing.welcome_modal?.highlights || DEFAULT_WELCOME_HIGHLIGHTS}
+                onChange={(h) =>
+                  setL({
+                    welcome_modal: {
+                      ...(landing.welcome_modal || {}),
+                      highlights: h,
+                    },
+                  })
+                }
+              />
             </div>
           </section>
 
@@ -241,6 +407,16 @@ export default function Branding() {
           </div>
         </aside>
       </div>
+
+      {previewModalOpen && (
+        <FirstTimeModal
+          churchName={name}
+          churchSlug={church.slug}
+          config={landing.welcome_modal}
+          previewOpen={previewModalOpen}
+          onPreviewClose={() => setPreviewModalOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -359,6 +535,121 @@ function LinksEditor({ links, onChange }: { links: LandingLink[]; onChange: (l: 
       ))}
       <Button type="button" variant="secondary" size="sm" onClick={add}>
         <Plus className="h-3.5 w-3.5" /> Add footer link
+      </Button>
+    </div>
+  );
+}
+
+function HighlightsEditor({
+  highlights,
+  onChange,
+}: {
+  highlights: WelcomeModalHighlight[];
+  onChange: (h: WelcomeModalHighlight[]) => void;
+}) {
+  const add = () => {
+    onChange([
+      ...highlights,
+      {
+        id: crypto.randomUUID(),
+        icon: 'sparkles',
+        title: 'New Feature or Announcement',
+        description: 'Provide a brief summary for attendees.',
+      },
+    ]);
+  };
+
+  const update = (i: number, patch: Partial<WelcomeModalHighlight>) => {
+    onChange(highlights.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  };
+
+  const remove = (i: number) => {
+    onChange(highlights.filter((_, j) => j !== i));
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    const next = [...highlights];
+    const [x] = next.splice(i, 1);
+    next.splice(i + dir, 0, x);
+    onChange(next);
+  };
+
+  const iconOptions: { value: WelcomeModalIcon; label: string }[] = [
+    { value: 'sparkles', label: 'Sparkles' },
+    { value: 'smartphone', label: 'Smartphone' },
+    { value: 'book', label: 'Open Book' },
+    { value: 'check', label: 'Checkmark' },
+    { value: 'bell', label: 'Bell (Announcement)' },
+    { value: 'heart', label: 'Heart' },
+    { value: 'info', label: 'Info' },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {highlights.map((h, i) => (
+        <div key={h.id || i} className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <div className="flex-1 space-y-2">
+            <div className="flex gap-2">
+              <Select
+                value={h.icon || 'sparkles'}
+                onChange={(e) => update(i, { icon: e.target.value as WelcomeModalIcon })}
+                className="w-40 text-xs"
+              >
+                {iconOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value={h.title}
+                onChange={(e) => update(i, { title: e.target.value })}
+                placeholder="Highlight title"
+                className="flex-1 text-sm font-semibold"
+              />
+            </div>
+            <Textarea
+              rows={2}
+              value={h.description}
+              onChange={(e) => update(i, { description: e.target.value })}
+              placeholder="Highlight description text..."
+              className="text-xs"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              disabled={i === 0}
+              onClick={() => move(i, -1)}
+              className="rounded p-1 text-slate-400 hover:bg-slate-200 disabled:opacity-30"
+              aria-label="Move up"
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={i === highlights.length - 1}
+              onClick={() => move(i, 1)}
+              className="rounded p-1 text-slate-400 hover:bg-slate-200 disabled:opacity-30"
+              aria-label="Move down"
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+              aria-label="Remove"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <Button type="button" variant="secondary" size="sm" onClick={add}>
+        <Plus className="h-3.5 w-3.5" /> Add Highlight Point
       </Button>
     </div>
   );

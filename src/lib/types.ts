@@ -108,6 +108,24 @@ export interface SermonRecord {
   updated_at?: string;
 }
 
+export type WelcomeModalIcon = 'sparkles' | 'smartphone' | 'book' | 'check' | 'bell' | 'heart' | 'info';
+
+export interface WelcomeModalHighlight {
+  id: string;
+  icon?: WelcomeModalIcon;
+  title: string;
+  description: string;
+}
+
+export interface WelcomeModalConfig {
+  enabled?: boolean;
+  title?: string;
+  subtitle?: string;
+  button_label?: string;
+  highlights?: WelcomeModalHighlight[];
+  version?: number;
+}
+
 export interface LandingConfig {
   welcome_title?: string;
   welcome_message?: string;
@@ -123,6 +141,7 @@ export interface LandingConfig {
   slides?: SlideDefinition[];
   sermons?: SermonRecord[];
   app_deeplinks?: AppDeeplink[];
+  welcome_modal?: WelcomeModalConfig;
 }
 
 export interface Church {

@@ -317,8 +317,14 @@ export default function LivePage() {
           landingConfig={landing}
         />
 
-        {/* Global First-Time Attendee Onboarding */}
-        {!isEmbedPreview && <FirstTimeModal churchName={church.name} />}
+        {/* Global First-Time / Announcement Attendee Modal */}
+        {!isEmbedPreview && (
+          <FirstTimeModal
+            churchName={church.name}
+            churchSlug={church.slug}
+            config={landing.welcome_modal}
+          />
+        )}
 
         {/* Footer */}
         {(landing.links?.length || landing.footer_text) && (
