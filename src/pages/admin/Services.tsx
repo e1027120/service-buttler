@@ -1,4 +1,4 @@
-import { CalendarClock, Clock, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, Clock, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, EmptyState, Field, Input, Modal, PageLoader, Select, Textarea, Toggle, useToast } from '../../components/ui';
 import { supabase, unwrap } from '../../lib/supabase';
@@ -13,6 +13,55 @@ export default function Services() {
   const [services, setServices] = useState<Service[] | null>(null);
   const [editing, setEditing] = useState<Partial<Service> | null>(null);
   const [addingTimeFor, setAddingTimeFor] = useState<Service | null>(null);
+  const [onlineCount, setOnlineCount] = useState<number>(0);
+  const [scanStats, setScanStats] = useState<{ totalScans: number; byService: Record<string, number> }>({
+    totalScans: 0,
+    byService: {},
+  });
+
+  // Track live online presence for this church
+  useEffect(() => {
+    if (!church.slug) return;
+    const channel = supabase.channel(`live:${church.slug}`);
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        setOnlineCount(Object.keys(state).length);
+      })
+      .on('presence', { event: 'join' }, () => {
+        const state = channel.presenceState();
+        setOnlineCount(Object.keys(state).length);
+      })
+      .on('presence', { event: 'leave' }, () => {
+        const state = channel.presenceState();
+        setOnlineCount(Object.keys(state).length);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [church.slug]);
+
+  const loadScans = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('service_scans')
+        .select('service_id')
+        .eq('church_id', church.id);
+      if (data) {
+        const bySvc: Record<string, number> = {};
+        for (const item of data) {
+          if (item.service_id) {
+            bySvc[item.service_id] = (bySvc[item.service_id] || 0) + 1;
+          }
+        }
+        setScanStats({ totalScans: data.length, byService: bySvc });
+      }
+    } catch {
+      // Graceful if table not yet migrated
+    }
+  }, [church.id]);
 
   const load = useCallback(async () => {
     const data = unwrap(
@@ -27,7 +76,8 @@ export default function Services() {
       s.service_times?.sort((a, b) => (a.specific_date || '').localeCompare(b.specific_date || '') || (a.day_of_week ?? 0) - (b.day_of_week ?? 0) || a.start_time.localeCompare(b.start_time)),
     );
     setServices(data);
-  }, [church.id]);
+    loadScans();
+  }, [church.id, loadScans]);
 
   useEffect(() => {
     load().catch((e) => toast(errorMessage(e), 'error'));
@@ -69,9 +119,24 @@ export default function Services() {
         title="Services & times"
         description={`Each service can run at multiple times. Times are in ${church.timezone}.`}
         actions={
-          <Button onClick={() => setEditing({ lead_minutes: 15, trail_minutes: 30, is_active: true })}>
-            <Plus className="h-4 w-4" /> New service
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 border border-emerald-200/80 shadow-xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>{onlineCount} {onlineCount === 1 ? 'person' : 'people'} online now</span>
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 border border-indigo-200/80 shadow-xs">
+              <QrCode className="h-3.5 w-3.5 text-indigo-600" />
+              <span>{scanStats.totalScans} QR {scanStats.totalScans === 1 ? 'scan' : 'scans'}</span>
+            </div>
+
+            <Button onClick={() => setEditing({ lead_minutes: 15, trail_minutes: 30, is_active: true })}>
+              <Plus className="h-4 w-4" /> New service
+            </Button>
+          </div>
         }
       />
 
@@ -88,11 +153,14 @@ export default function Services() {
             <section key={s.id} className="card">
               <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-lg font-semibold">{s.name}</h2>
                     {!s.is_active && <Badge tone="amber">Inactive</Badge>}
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      <QrCode className="h-3 w-3 text-slate-500" /> {scanStats.byService[s.id] || 0} scans
+                    </span>
                   </div>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 mt-0.5">
                     /c/{church.slug}/{s.slug} · live {s.lead_minutes} min before → {s.trail_minutes} min after
                   </p>
                   {s.description && <p className="mt-1 text-sm text-slate-600">{s.description}</p>}

@@ -129,3 +129,41 @@ export async function fetchPlanningCenterForms(config: { app_id?: string; secret
   }
   return res.json() as Promise<{ items: import('./types').PlanningCenterItem[]; count: number }>;
 }
+
+export async function fetchPlanningCenterLive(config: {
+  app_id?: string;
+  secret?: string;
+  service_type_id?: string;
+  plan_id?: string;
+}) {
+  const res = await fetch('/api/pco/live', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to check Planning Center Live');
+  }
+  return res.json() as Promise<{
+    live: boolean;
+    currentItem?: string;
+    planTitle?: string;
+    delayMinutes: number;
+    serviceTypeId?: string;
+    planId?: string;
+    serviceTypes?: { id: string; name: string }[];
+  }>;
+}
+
+export async function logScan(churchSlug: string, serviceSlug?: string | null, source: string = 'qr'): Promise<void> {
+  try {
+    await supabase.rpc('log_scan', {
+      p_church_slug: churchSlug,
+      p_service_slug: serviceSlug || null,
+      p_source: source,
+    });
+  } catch {
+    // Graceful fallback if migration not yet applied
+  }
+}

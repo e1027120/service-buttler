@@ -13,6 +13,7 @@ import type {
   OfferingMethod,
   PlanningCenterItem,
   PollContent,
+  QuestionContent,
   SermonNotesContent,
 } from '../../lib/types';
 import { errorMessage, shortId } from '../../lib/utils';
@@ -68,6 +69,14 @@ export function defaultContent(type: ActionType): C {
         submit_label: 'Send',
         success_message: 'Thank you! Our team will be praying for you.',
       } satisfies FormContent as C;
+    case 'question':
+      return {
+        intro: 'Have a question about today’s message or service? Ask here and our team will review it.',
+        allow_anonymous: true,
+        require_name: false,
+        submit_label: 'Submit question',
+        success_message: 'Thank you! Your question has been submitted.',
+      } satisfies QuestionContent as C;
     case 'link':
       return { url: '', label: 'Open' } satisfies LinkContent;
   }
@@ -206,6 +215,16 @@ export function normalizeContent(type: ActionType, c: C): C {
   if (type === 'poll') {
     const p = c as PollContent;
     return { ...p, options: (p.options || []).filter((o) => o.label.trim()).map((o) => ({ ...o, label: o.label.trim() })) };
+  }
+  if (type === 'question') {
+    const q = c as QuestionContent;
+    return {
+      intro: q.intro?.trim() || undefined,
+      allow_anonymous: q.allow_anonymous !== false,
+      require_name: Boolean(q.require_name),
+      submit_label: q.submit_label?.trim() || undefined,
+      success_message: q.success_message?.trim() || undefined,
+    };
   }
   return c;
 }
@@ -511,6 +530,43 @@ export function ContentEditor({
             </Field>
             <Field label="Success message">
               <Input value={v.success_message || ''} onChange={(e) => set({ success_message: e.target.value })} />
+            </Field>
+          </div>
+        </div>
+      );
+    }
+    case 'question': {
+      const v = value as QuestionContent;
+      return (
+        <div className="space-y-4">
+          <Field label="Introduction / Prompt" hint="Optional guidance text shown above the question input">
+            <Textarea
+              rows={2}
+              value={v.intro || ''}
+              onChange={(e) => set({ intro: e.target.value })}
+              placeholder="Have a question about today's sermon? Ask here and our team will review it."
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Toggle
+              label="Allow anonymous submissions"
+              description="Attendees can submit without providing their name"
+              checked={v.allow_anonymous !== false}
+              onChange={(c) => set({ allow_anonymous: c })}
+            />
+            <Toggle
+              label="Require attendee name"
+              description="Attendees must provide a name"
+              checked={Boolean(v.require_name)}
+              onChange={(c) => set({ require_name: c })}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Submit button label">
+              <Input value={v.submit_label || ''} onChange={(e) => set({ submit_label: e.target.value })} placeholder="Submit question" />
+            </Field>
+            <Field label="Success message">
+              <Input value={v.success_message || ''} onChange={(e) => set({ success_message: e.target.value })} placeholder="Thank you! Your question has been submitted." />
             </Field>
           </div>
         </div>

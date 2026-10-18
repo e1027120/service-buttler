@@ -27,10 +27,11 @@ export default function Share() {
 
   const selectedService = services.find((s) => s.id === target);
   const targetUrl = landingUrl(church.slug, selectedService?.slug);
+  const qrUrl = targetUrl + (targetUrl.includes('?') ? '&' : '?') + 'src=qr';
 
   const renderQr = useCallback(async () => {
     try {
-      const dataUrl = await QRCode.toDataURL(targetUrl, {
+      const dataUrl = await QRCode.toDataURL(qrUrl, {
         width: 1024,
         margin: 2,
         color: {
@@ -42,7 +43,7 @@ export default function Share() {
     } catch {
       /* ignore */
     }
-  }, [targetUrl, church.primary_color]);
+  }, [qrUrl, church.primary_color]);
 
   useEffect(() => {
     renderQr();

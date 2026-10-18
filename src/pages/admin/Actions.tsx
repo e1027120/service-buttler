@@ -1,6 +1,7 @@
-import { ArrowDown, ArrowUp, Eye, Pencil, Pin, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Clock, Eye, FastForward, LayoutList, Pencil, Pin, Plus, Radio, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, EmptyState, Field, Input, Modal, PageLoader, Select, Toggle, useToast } from '../../components/ui';
+import { fetchPlanningCenterLive } from '../../lib/api';
 import { supabase, unwrap } from '../../lib/supabase';
 import { ACTION_TYPES, type Action, type ActionType, type Church, type LiveAction, type Service } from '../../lib/types';
 import { brandStyle, describeOffsets, errorMessage } from '../../lib/utils';
@@ -9,6 +10,7 @@ import { THEMES } from '../live/LivePage';
 import { ContentEditor, defaultContent, FORM_PRESETS, normalizeContent, validateContent } from './ActionEditors';
 import { ActionsSubNav } from './ActionsSubNav';
 import { PageHeader } from './AdminLayout';
+import { WaterfallTimeline } from './WaterfallTimeline';
 import { useAdmin } from './context';
 
 export default function Actions() {
@@ -19,6 +21,90 @@ export default function Actions() {
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [editing, setEditing] = useState<Partial<Action> | null>(null);
   const [liveActionId, setLiveActionId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list');
+  const [pcoLive, setPcoLive] = useState<{
+    live: boolean;
+    currentItem?: string;
+    delayMinutes: number;
+    planTitle?: string;
+  } | null>(null);
+  const [checkingPco, setCheckingPco] = useState(false);
+
+  const checkPco = useCallback(async () => {
+    const pco = church.landing?.planning_center;
+    if (!pco?.app_id || !pco?.secret) return;
+    setCheckingPco(true);
+    try {
+      const res = await fetchPlanningCenterLive({
+        app_id: pco.app_id,
+        secret: pco.secret,
+      });
+      setPcoLive(res);
+    } catch {
+      /* ignore */
+    } finally {
+      setCheckingPco(false);
+    }
+  }, [church.landing?.planning_center]);
+
+  useEffect(() => {
+    checkPco();
+  }, [checkPco]);
+
+  const updateOffsets = async (actionId: string, start: number | null, end: number | null) => {
+    try {
+      unwrap(
+        await supabase
+          .from('actions')
+          .update({ start_offset_minutes: start, end_offset_minutes: end })
+          .eq('id', actionId),
+      );
+      load();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  };
+
+  const nudgeAction = async (actionId: string, deltaMinutes: number) => {
+    const act = actions?.find((x) => x.id === actionId);
+    if (!act) return;
+    const start = (act.start_offset_minutes ?? 0) + deltaMinutes;
+    const end = (act.end_offset_minutes ?? (act.start_offset_minutes ?? 0) + 20) + deltaMinutes;
+    await updateOffsets(actionId, start, end);
+    toast(`Timing nudged ${deltaMinutes > 0 ? `+${deltaMinutes}` : deltaMinutes}m`);
+  };
+
+  const applyPcoDelayToAll = async (delayMinutes: number) => {
+    if (!actions) return;
+    const targetServiceId =
+      serviceFilter !== 'all' && serviceFilter !== 'church' ? serviceFilter : services[0]?.id;
+    if (!targetServiceId) {
+      toast('Please select a specific service to sync with PCO Live', 'error');
+      return;
+    }
+    const targetActions = actions.filter((a) => a.service_id === targetServiceId);
+    if (targetActions.length === 0) {
+      toast('No actions found in this service to shift', 'error');
+      return;
+    }
+
+    try {
+      await Promise.all(
+        targetActions.map((a) => {
+          const s = (a.start_offset_minutes ?? 0) + delayMinutes;
+          const e = (a.end_offset_minutes ?? (a.start_offset_minutes ?? 0) + 20) + delayMinutes;
+          return supabase
+            .from('actions')
+            .update({ start_offset_minutes: s, end_offset_minutes: e })
+            .eq('id', a.id);
+        }),
+      );
+      toast(`Shifted ${targetActions.length} actions by +${delayMinutes}m to match stage clock`);
+      load();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  };
 
   const load = useCallback(async () => {
     const [acts, srvs] = await Promise.all([
@@ -130,78 +216,153 @@ export default function Actions() {
 
       <ActionsSubNav current="actions" />
 
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={<Sparkles className="h-10 w-10" />}
-          title="No actions found"
-          description="Actions show up on attendee phones based on the service schedule or when pinned live."
-          action={
-            <Button
-              onClick={() =>
-                setEditing({
-                  type: 'announcement',
-                  service_id: services[0]?.id || null,
-                  content: defaultContent('announcement'),
-                  is_active: true,
-                })
-              }
-            >
-              Create action
-            </Button>
-          }
-        />
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((a) => {
-            const svc = services.find((s) => s.id === a.service_id);
-            const isPinned = liveActionId === a.id;
-            return (
-              <div key={a.id} className={`card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${isPinned ? 'ring-2 ring-brand' : ''}`}>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{a.title}</span>
-                    <Badge tone="brand">{a.type.replace('_', ' ')}</Badge>
-                    {isPinned && <Badge tone="red">LIVE PINNED</Badge>}
-                    {!a.is_active && <Badge tone="amber">Paused</Badge>}
-                    {a.priority > 0 && <Badge>Priority {a.priority}</Badge>}
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
-                    <span>{svc ? `Service: ${svc.name}` : 'Church-wide (between services)'}</span>
-                    {svc && <span>· Time window: {describeOffsets(a.start_offset_minutes, a.end_offset_minutes)}</span>}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {svc && (
-                    <Button
-                      variant={isPinned ? 'primary' : 'secondary'}
-                      size="sm"
-                      onClick={() => pin(a)}
-                      title={isPinned ? 'Clear pin override' : 'Pin this action on top of attendee screens right now'}
-                    >
-                      <Pin className="h-3.5 w-3.5" /> {isPinned ? 'Pinned' : 'Push live'}
-                    </Button>
-                  )}
-                  <Button variant="ghost" size="sm" onClick={() => toggle(a)}>
-                    {a.is_active ? 'Pause' : 'Resume'}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setEditing(a)}>
-                    <Pencil className="h-3.5 w-3.5" /> Edit
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => move(a, -1)} aria-label="Move up">
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => move(a, 1)} aria-label="Move down">
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </Button>
-                  <ConfirmButton variant="ghost" size="sm" message={`Delete “${a.title}”?`} onConfirm={() => remove(a)} aria-label="Delete action">
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </ConfirmButton>
-                </div>
-              </div>
-            );
-          })}
+      {/* Planning Center Live status and sync alert */}
+      {pcoLive?.live && pcoLive.delayMinutes > 0 && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 px-5 py-3 text-sm text-amber-900 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <Radio className="h-5 w-5 text-amber-600 animate-pulse" />
+            <div>
+              <span className="font-bold">Planning Center Live:</span> Service is currently{' '}
+              <span className="font-extrabold text-amber-700">{pcoLive.delayMinutes}m behind schedule</span> (current: {pcoLive.currentItem}).
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => applyPcoDelayToAll(pcoLive.delayMinutes)}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            <FastForward className="h-4 w-4" /> Shift Service Actions (+{pcoLive.delayMinutes}m)
+          </Button>
         </div>
+      )}
+
+      {/* View mode toggle */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/80">
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <LayoutList className="h-3.5 w-3.5" /> List View
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('timeline')}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              viewMode === 'timeline' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" /> Waterfall Timeline
+          </button>
+        </div>
+
+        {church.landing?.planning_center?.app_id && (
+          <button
+            type="button"
+            onClick={checkPco}
+            disabled={checkingPco}
+            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800"
+          >
+            <RefreshCw className={`h-3 w-3 ${checkingPco ? 'animate-spin' : ''}`} />
+            <span>PCO Live Status</span>
+          </button>
+        )}
+      </div>
+
+      {viewMode === 'timeline' && (
+        <WaterfallTimeline
+          actions={filtered}
+          services={services}
+          selectedServiceId={serviceFilter}
+          onSelectService={setServiceFilter}
+          onUpdateOffsets={updateOffsets}
+          onNudge={nudgeAction}
+          onPin={pin}
+          liveActionId={liveActionId}
+          onEditAction={(a) => setEditing(a)}
+        />
+      )}
+
+      {viewMode === 'list' && (
+        <>
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={<Sparkles className="h-10 w-10" />}
+              title="No actions found"
+              description="Actions show up on attendee phones based on the service schedule or when pinned live."
+              action={
+                <Button
+                  onClick={() =>
+                    setEditing({
+                      type: 'announcement',
+                      service_id: services[0]?.id || null,
+                      content: defaultContent('announcement'),
+                      is_active: true,
+                    })
+                  }
+                >
+                  Create action
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((a) => {
+                const svc = services.find((s) => s.id === a.service_id);
+                const isPinned = liveActionId === a.id;
+                return (
+                  <div key={a.id} className={`card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${isPinned ? 'ring-2 ring-brand' : ''}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{a.title}</span>
+                        <Badge tone="brand">{a.type.replace('_', ' ')}</Badge>
+                        {isPinned && <Badge tone="red">LIVE PINNED</Badge>}
+                        {!a.is_active && <Badge tone="amber">Paused</Badge>}
+                        {a.priority > 0 && <Badge>Priority {a.priority}</Badge>}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                        <span>{svc ? `Service: ${svc.name}` : 'Church-wide (between services)'}</span>
+                        {svc && <span>· Time window: {describeOffsets(a.start_offset_minutes, a.end_offset_minutes)}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {svc && (
+                        <Button
+                          variant={isPinned ? 'primary' : 'secondary'}
+                          size="sm"
+                          onClick={() => pin(a)}
+                          title={isPinned ? 'Clear pin override' : 'Pin this action on top of attendee screens right now'}
+                        >
+                          <Pin className="h-3.5 w-3.5" /> {isPinned ? 'Pinned' : 'Push live'}
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => toggle(a)}>
+                        {a.is_active ? 'Pause' : 'Resume'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setEditing(a)}>
+                        <Pencil className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => move(a, -1)} aria-label="Move up">
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => move(a, 1)} aria-label="Move down">
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                      <ConfirmButton variant="ghost" size="sm" message={`Delete “${a.title}”?`} onConfirm={() => remove(a)} aria-label="Delete action">
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </ConfirmButton>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {editing && (

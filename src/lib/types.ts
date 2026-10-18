@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 
 export type MemberRole = 'owner' | 'admin' | 'editor';
-export type ActionType = 'announcement' | 'sermon_notes' | 'poll' | 'offering' | 'form' | 'link';
+export type ActionType = 'announcement' | 'sermon_notes' | 'poll' | 'offering' | 'form' | 'question' | 'link';
 
 export interface LandingLink {
   label: string;
@@ -270,6 +270,14 @@ export interface FormContent {
   success_message?: string;
 }
 
+export interface QuestionContent {
+  intro?: string;
+  allow_anonymous?: boolean;
+  require_name?: boolean;
+  submit_label?: string;
+  success_message?: string;
+}
+
 export interface LinkContent {
   url?: string;
   label?: string;
@@ -283,6 +291,7 @@ export type ActionContent =
   | PollContent
   | OfferingContent
   | FormContent
+  | QuestionContent
   | LinkContent;
 
 export interface Action {
@@ -356,6 +365,7 @@ export const ACTION_TYPES: { type: ActionType; label: string; description: strin
   { type: 'announcement', label: 'Announcement', description: 'News, events and highlights with an optional button' },
   { type: 'sermon_notes', label: 'Sermon notes', description: 'Outline, scripture and personal note-taking' },
   { type: 'poll', label: 'Live poll', description: 'Ask a question and show results live' },
+  { type: 'question', label: 'Ask a question', description: 'Collect attendee questions for sermon Q&A or team review' },
   { type: 'offering', label: 'Offering', description: 'Giving options: online links, bank transfer, …' },
   { type: 'form', label: 'Form', description: 'Prayer requests, connect cards, feedback' },
   { type: 'link', label: 'Link', description: 'Send people to a page, livestream or sign-up' },

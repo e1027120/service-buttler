@@ -1,11 +1,11 @@
-import { BookOpen, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, Heart, Info, QrCode, Send, Share2 } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Clock, Copy, Download, ExternalLink, Heart, HelpCircle, Info, Pencil, Pin, QrCode, Send, Share2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown';
 import { SlideIcon } from '../../components/SlideIcon';
 import { cx } from '../../components/ui';
 import { castVote, fetchPollResults, getVoterToken, submitForm } from '../../lib/api';
-import { fetchBibleVerse, type VerseResult } from '../../lib/bible';
+import { fetchBibleVerse, SUPPORTED_TRANSLATIONS, type VerseResult } from '../../lib/bible';
 import { createQrPdfBlob } from '../../lib/pdf';
 import { resolveSlideDeeplinkUrl } from '../../lib/slides';
 import type {
@@ -19,6 +19,7 @@ import type {
   OfferingMethod,
   PollContent,
   PollResults,
+  QuestionContent,
   SermonNotesContent,
   SermonSlide,
 } from '../../lib/types';
@@ -45,6 +46,67 @@ interface Props {
   churchLanding?: LandingConfig;
 }
 
+function ActionRemainingTimer({
+  visibleUntil,
+  pinned,
+  theme,
+}: {
+  visibleUntil: string | null;
+  pinned?: boolean;
+  theme: ThemeTokens;
+}) {
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visibleUntil) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const update = () => {
+      const ms = new Date(visibleUntil).getTime() - Date.now();
+      if (ms <= 0) {
+        setTimeLeft('Ending soon');
+        return;
+      }
+      const mins = Math.floor(ms / 60000);
+      const secs = Math.floor((ms % 60000) / 1000);
+      if (mins > 60) {
+        const hrs = Math.floor(mins / 60);
+        setTimeLeft(`${hrs}h ${mins % 60}m left`);
+      } else if (mins > 0) {
+        setTimeLeft(`${mins}m ${secs < 10 ? '0' : ''}${secs}s left`);
+      } else {
+        setTimeLeft(`${secs}s left`);
+      }
+    };
+
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [visibleUntil]);
+
+  if (!pinned && !timeLeft) return null;
+
+  return (
+    <div className="mb-3 flex items-center justify-between text-xs px-1">
+      {pinned ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+          <Pin className="h-3 w-3" /> Pinned live by AV
+        </span>
+      ) : (
+        <span />
+      )}
+      {timeLeft && (
+        <span className={cx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide transition shadow-xs', theme.chip)}>
+          <Clock className="h-3 w-3 opacity-70 animate-pulse text-brand" />
+          <span>{timeLeft}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ActionView({
   action,
   theme,
@@ -55,40 +117,52 @@ export function ActionView({
   churchLanding,
 }: Props) {
   const c = action.content as Record<string, unknown>;
-  switch (action.type) {
-    case 'announcement':
-      return (
-        <Announcement
-          title={action.title}
-          c={c as AnnouncementContent}
-          theme={theme}
-          churchLanding={churchLanding}
-        />
-      );
-    case 'sermon_notes':
-      return (
-        <SermonNotes
-          id={action.id}
-          title={action.title}
-          c={c as SermonNotesContent}
-          theme={theme}
-          churchSlug={churchSlug}
-          churchName={churchName}
-          serviceName={serviceName}
-          churchLanding={churchLanding}
-        />
-      );
-    case 'poll':
-      return <Poll id={action.id} title={action.title} c={c as PollContent} theme={theme} preview={preview} />;
-    case 'offering':
-      return <Offering title={action.title} c={c as OfferingContent} theme={theme} />;
-    case 'form':
-      return <Form id={action.id} title={action.title} c={c as FormContent} theme={theme} preview={preview} />;
-    case 'link':
-      return <LinkCard title={action.title} c={c as LinkContent} theme={theme} />;
-    default:
-      return null;
-  }
+
+  const renderContent = () => {
+    switch (action.type) {
+      case 'announcement':
+        return (
+          <Announcement
+            title={action.title}
+            c={c as AnnouncementContent}
+            theme={theme}
+            churchLanding={churchLanding}
+          />
+        );
+      case 'sermon_notes':
+        return (
+          <SermonNotes
+            id={action.id}
+            title={action.title}
+            c={c as SermonNotesContent}
+            theme={theme}
+            churchSlug={churchSlug}
+            churchName={churchName}
+            serviceName={serviceName}
+            churchLanding={churchLanding}
+          />
+        );
+      case 'poll':
+        return <Poll id={action.id} title={action.title} c={c as PollContent} theme={theme} preview={preview} />;
+      case 'offering':
+        return <Offering title={action.title} c={c as OfferingContent} theme={theme} />;
+      case 'form':
+        return <Form id={action.id} title={action.title} c={c as FormContent} theme={theme} preview={preview} />;
+      case 'question':
+        return <QuestionCard id={action.id} title={action.title} c={c as QuestionContent} theme={theme} preview={preview} />;
+      case 'link':
+        return <LinkCard title={action.title} c={c as LinkContent} theme={theme} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <ActionRemainingTimer visibleUntil={action.visible_until} pinned={action.pinned} theme={theme} />
+      {renderContent()}
+    </div>
+  );
 }
 
 const primaryBtn =
@@ -477,6 +551,13 @@ function Announcement({
 // ---------------------------------------------------------------------------
 // Inline Bible Verse renderer with automatic API fetching and caching
 function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTokens }) {
+  const [translation, setTranslation] = useState(() => {
+    try {
+      return localStorage.getItem('sb_bible_trans') || 'web';
+    } catch {
+      return 'web';
+    }
+  });
   const [verse, setVerse] = useState<VerseResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -485,7 +566,7 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
     let active = true;
     setLoading(true);
     setError(false);
-    fetchBibleVerse(reference)
+    fetchBibleVerse(reference, translation)
       .then((res) => {
         if (!active) return;
         if (res) {
@@ -504,7 +585,14 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
     return () => {
       active = false;
     };
-  }, [reference]);
+  }, [reference, translation]);
+
+  const onTranslationChange = (newT: string) => {
+    setTranslation(newT);
+    try {
+      localStorage.setItem('sb_bible_trans', newT);
+    } catch {}
+  };
 
   return (
     <div className={cx('rounded-2xl border border-brand/20 bg-brand/5 p-4 sm:p-5 transition-all', theme.card)}>
@@ -513,11 +601,21 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
           <BookOpen className="h-3.5 w-3.5" />
           {verse?.reference || reference}
         </span>
-        {verse?.translation_name && (
-          <span className={cx('text-[11px] font-medium opacity-60', theme.muted)}>
-            {verse.translation_name}
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          <select
+            value={translation}
+            onChange={(e) => onTranslationChange(e.target.value)}
+            className="cursor-pointer rounded-lg border border-black/10 dark:border-white/10 bg-white/80 dark:bg-slate-800/80 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 outline-none hover:bg-white dark:hover:bg-slate-800 transition"
+            title="Choose Bible Translation"
+            aria-label="Choose Bible Translation"
+          >
+            {SUPPORTED_TRANSLATIONS.map((t) => (
+              <option key={t.id} value={t.id} className="bg-white text-slate-900">
+                {t.shortName}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading && (
@@ -543,7 +641,22 @@ function BibleVerseBox({ reference, theme }: { reference: string; theme: ThemeTo
 
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: number; theme: ThemeTokens }) {
+function SermonSlideCard({
+  slide,
+  index,
+  theme,
+  allowPersonalNotes,
+  note,
+  onNoteChange,
+}: {
+  slide: SermonSlide;
+  index: number;
+  theme: ThemeTokens;
+  allowPersonalNotes?: boolean;
+  note?: string;
+  onNoteChange?: (text: string) => void;
+}) {
+  const [isWritingNote, setIsWritingNote] = useState(Boolean(note));
   const isFullImage = Boolean(slide.is_full_image && slide.image_url);
   const hasBackground = Boolean(slide.image_url);
   const hasTitle = Boolean(!isFullImage && slide.title?.trim());
@@ -553,13 +666,53 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
 
   if (isFullImage) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-black/5 shadow-sm sm:rounded-3xl dark:border-white/10 bg-black/5 dark:bg-white/5">
-        <img
-          src={slide.image_url}
-          alt={slide.title || `Slide ${index + 1}`}
-          className="w-full h-auto max-h-[70vh] object-contain sm:object-cover mx-auto rounded-2xl sm:rounded-3xl"
-          loading="lazy"
-        />
+      <div className="space-y-2.5">
+        <div className="relative overflow-hidden rounded-2xl border border-black/5 shadow-sm sm:rounded-3xl dark:border-white/10 bg-black/5 dark:bg-white/5">
+          <img
+            src={slide.image_url}
+            alt={slide.title || `Slide ${index + 1}`}
+            className="w-full h-auto max-h-[70vh] object-contain sm:object-cover mx-auto rounded-2xl sm:rounded-3xl"
+            loading="lazy"
+          />
+        </div>
+        {allowPersonalNotes && (
+          <div className="px-1">
+            {isWritingNote || note ? (
+              <div className="space-y-1.5 animate-fade-in rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3 shadow-xs">
+                <div className="flex items-center justify-between text-xs">
+                  <span className={cx('flex items-center gap-1 font-semibold text-[11px]', theme.muted)}>
+                    <Pencil className="h-3 w-3 text-brand" /> Reflection on Slide {index + 1}
+                  </span>
+                  {!note && (
+                    <button
+                      type="button"
+                      onClick={() => setIsWritingNote(false)}
+                      className="text-[11px] opacity-60 hover:opacity-100"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={note || ''}
+                  onChange={(e) => onNoteChange?.(e.target.value)}
+                  rows={2}
+                  placeholder="My thoughts on this slide… (saved privately on your phone)"
+                  className={cx('w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40', theme.input)}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsWritingNote(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition active:scale-95 bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-black/10"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>Add note to this slide</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -583,11 +736,11 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
             loading="lazy"
           />
           {/* Only apply gradient overlay if there is text to keep readable */}
-          {hasAnyText && (
+          {(hasAnyText || allowPersonalNotes) && (
             <div
               className={cx(
                 'absolute inset-0',
-                hasVerse || hasBody
+                hasVerse || hasBody || isWritingNote || note
                   ? 'bg-gradient-to-t from-slate-950/95 via-slate-950/80 to-slate-950/50 backdrop-blur-[1px]'
                   : 'bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent'
               )}
@@ -596,43 +749,91 @@ function SermonSlideCard({ slide, index, theme }: { slide: SermonSlide; index: n
         </div>
       )}
 
-      {/* Slide text content (only rendered if title, verse, or body exists) */}
-      {hasAnyText && (
-        <div className="relative z-10 space-y-4 p-5 sm:p-7 w-full">
-          {/* Slide Point / Title */}
-          {hasTitle && (
-            <div className="flex items-start gap-3">
-              {slide.show_number && (
-                <span
-                  className={cx(
-                    'flex h-6 min-w-[24px] px-1.5 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
-                    hasBackground
-                      ? 'bg-brand text-white'
-                      : 'bg-brand/10 text-brand'
+      {/* Slide text content & note */}
+      <div className="relative z-10 space-y-4 p-5 sm:p-7 w-full">
+        {/* Slide Point / Title */}
+        {hasTitle && (
+          <div className="flex items-start gap-3">
+            {slide.show_number && (
+              <span
+                className={cx(
+                  'flex h-6 min-w-[24px] px-1.5 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm',
+                  hasBackground
+                    ? 'bg-brand text-white'
+                    : 'bg-brand/10 text-brand'
+                )}
+              >
+                {slide.slide_number?.trim() || index + 1}
+              </span>
+            )}
+            <h3 className={cx('text-lg font-bold leading-snug sm:text-xl', hasBackground && 'drop-shadow text-white')}>
+              {slide.title}
+            </h3>
+          </div>
+        )}
+
+        {/* Bible Verse Reference Box */}
+        {hasVerse && (
+          <BibleVerseBox reference={slide.verse_reference!} theme={theme} />
+        )}
+
+        {/* Explanatory notes / Markdown body */}
+        {hasBody && (
+          <div className={hasBackground ? 'text-slate-100 opacity-95 drop-shadow-sm' : undefined}>
+            <Markdown>{slide.body}</Markdown>
+          </div>
+        )}
+
+        {/* Per-Slide Personal Note */}
+        {allowPersonalNotes && (
+          <div className="pt-2 border-t border-black/5 dark:border-white/10 mt-3">
+            {isWritingNote || note ? (
+              <div className="space-y-1.5 animate-fade-in">
+                <div className="flex items-center justify-between text-xs">
+                  <span className={cx('flex items-center gap-1 font-semibold text-[11px]', hasBackground ? 'text-white/80' : theme.muted)}>
+                    <Pencil className="h-3 w-3" /> Reflection on this point
+                  </span>
+                  {!note && (
+                    <button
+                      type="button"
+                      onClick={() => setIsWritingNote(false)}
+                      className={cx('text-[11px] opacity-60 hover:opacity-100', hasBackground ? 'text-white' : undefined)}
+                    >
+                      Cancel
+                    </button>
                   )}
-                >
-                  {slide.slide_number?.trim() || index + 1}
-                </span>
-              )}
-              <h3 className={cx('text-lg font-bold leading-snug sm:text-xl', hasBackground && 'drop-shadow text-white')}>
-                {slide.title}
-              </h3>
-            </div>
-          )}
-
-          {/* Bible Verse Reference Box */}
-          {hasVerse && (
-            <BibleVerseBox reference={slide.verse_reference!} theme={theme} />
-          )}
-
-          {/* Explanatory notes / Markdown body */}
-          {hasBody && (
-            <div className={hasBackground ? 'text-slate-100 opacity-95 drop-shadow-sm' : undefined}>
-              <Markdown>{slide.body}</Markdown>
-            </div>
-          )}
-        </div>
-      )}
+                </div>
+                <textarea
+                  value={note || ''}
+                  onChange={(e) => onNoteChange?.(e.target.value)}
+                  rows={2}
+                  placeholder="My thoughts on this point… (saved privately on this phone)"
+                  className={cx(
+                    'w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40',
+                    hasBackground
+                      ? 'bg-slate-900/80 border-white/20 text-white placeholder:text-white/50 backdrop-blur-sm'
+                      : theme.input
+                  )}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsWritingNote(true)}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition active:scale-95',
+                  hasBackground
+                    ? 'bg-white/15 text-white hover:bg-white/25'
+                    : 'bg-black/5 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-black/10'
+                )}
+              >
+                <Pencil className="h-3 w-3" />
+                <span>Add note to this point</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -658,8 +859,27 @@ function SermonNotes({
   churchLanding?: LandingConfig;
 }) {
   const key = `sb_notes:${id}`;
+  const slideNotesKey = `sb_slide_notes:${id}`;
   const [notes, setNotes] = useState(() => localStorage.getItem(key) || '');
+  const [slideNotes, setSlideNotes] = useState<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem(slideNotesKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
   const [copied, setCopied] = useState(false);
+
+  const updateSlideNote = (slideId: string, text: string) => {
+    setSlideNotes((prev) => {
+      const next = { ...prev, [slideId]: text };
+      try {
+        localStorage.setItem(slideNotesKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // If action links to an archived sermon from the central library, resolve it dynamically
   const linkedSermon = c.sermon_id
@@ -674,7 +894,7 @@ function SermonNotes({
     : (c.slides && c.slides.length > 0 ? c.slides : null);
   const allowNotes = linkedSermon ? linkedSermon.allow_personal_notes !== false : c.allow_personal_notes !== false;
 
-  // Build full text for sharing / clipboard
+  // Build full text for sharing / clipboard (combines slide notes with general notes)
   const fullText = [
     displayTitle,
     speaker ? `Speaker: ${speaker}` : '',
@@ -684,22 +904,24 @@ function SermonNotes({
       ? slides
           .map((s, i) => {
             const prefix = s.show_number ? `${s.slide_number?.trim() || i + 1}. ` : '';
-            return [
+            const sKey = s.id || String(i);
+            const mySlideNote = slideNotes[sKey]?.trim();
+            const slideParts = [
               s.title ? `${prefix}${s.title}` : (prefix ? `Point ${prefix.trim()}` : ''),
               s.verse_reference ? `Verse: ${s.verse_reference}` : '',
               s.body || '',
-            ]
-              .filter(Boolean)
-              .join('\n');
+              mySlideNote ? `\n— My note on this point —\n${mySlideNote}` : '',
+            ].filter(Boolean);
+            return slideParts.join('\n');
           })
+          .filter(Boolean)
           .join('\n\n')
       : c.body || '',
     '',
-    '— My personal notes —',
-    notes,
+    notes ? `— General notes —\n${notes}` : '',
   ]
-    .filter((x) => x !== undefined)
-    .join('\n');
+    .filter((x) => x !== undefined && x !== '')
+    .join('\n\n');
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -716,7 +938,7 @@ function SermonNotes({
       });
     }, 300);
     return () => clearTimeout(t);
-  }, [id, notes, churchSlug, churchName, serviceName, displayTitle, speaker, c.sermon_id, mainVerse, slides, fullText]);
+  }, [id, notes, slideNotes, churchSlug, churchName, serviceName, displayTitle, speaker, c.sermon_id, mainVerse, slides, fullText]);
 
   const share = async () => {
     if (navigator.share) {
@@ -765,17 +987,25 @@ function SermonNotes({
       {slides && slides.length > 0 && (
         <div className="space-y-4">
           {slides.map((slide, idx) => (
-            <SermonSlideCard key={slide.id || idx} slide={slide} index={idx} theme={theme} />
+            <SermonSlideCard
+              key={slide.id || idx}
+              slide={slide}
+              index={idx}
+              theme={theme}
+              allowPersonalNotes={allowNotes}
+              note={slideNotes[slide.id || String(idx)] || ''}
+              onNoteChange={(txt) => updateSlideNote(slide.id || String(idx), txt)}
+            />
           ))}
         </div>
       )}
 
-      {/* Personal Notes Card */}
+      {/* General Personal Notes Card */}
       {allowNotes && (
         <article className={cx('rounded-3xl p-6 shadow-xl sm:p-8 space-y-3', theme.card)}>
           <div className="flex items-center justify-between">
             <label htmlFor={`notes-${id}`} className="text-sm font-bold">
-              My Personal Notes
+              General Personal Notes
             </label>
             <div className="group relative flex items-center">
               <button
@@ -802,8 +1032,8 @@ function SermonNotes({
             id={`notes-${id}`}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={5}
-            placeholder="Write your personal reflections… they stay saved on this device."
+            rows={4}
+            placeholder="Write overall reflections… they attach at the end of your slide notes."
             className={cx(
               'w-full rounded-2xl border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand/40',
               theme.input
@@ -818,7 +1048,7 @@ function SermonNotes({
             )}
           >
             {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-            {copied ? 'Copied to clipboard' : 'Save / share sermon notes'}
+            {copied ? 'Copied to clipboard' : 'Save / share full sermon notes'}
           </button>
         </article>
       )}
@@ -1303,6 +1533,171 @@ function Form({ id, title, c, theme, preview }: { id: string; title: string; c: 
         {error && <p className="text-sm font-medium text-red-500">{error}</p>}
         <button type="submit" className={primaryBtn} disabled={state === 'busy' || preview}>
           <Send className="h-4 w-4" /> {state === 'busy' ? 'Sending…' : c.submit_label || 'Submit'}
+        </button>
+      </form>
+    </Shell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+function QuestionCard({
+  id,
+  title,
+  c,
+  theme,
+  preview,
+}: {
+  id: string;
+  title: string;
+  c: QuestionContent;
+  theme: ThemeTokens;
+  preview?: boolean;
+}) {
+  const [question, setQuestion] = useState('');
+  const [name, setName] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(c.allow_anonymous !== false && !c.require_name);
+  const [honeypot, setHoneypot] = useState('');
+  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (preview) return;
+    if (!question.trim()) {
+      setError('Please type your question.');
+      return;
+    }
+    if (c.require_name && !name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+
+    setState('busy');
+    setError(null);
+    try {
+      await submitForm(
+        id,
+        {
+          question: question.trim(),
+          author_name: isAnonymous ? 'Anonymous' : (name.trim() || 'Anonymous'),
+          is_anonymous: String(isAnonymous),
+        },
+        honeypot,
+      );
+      setState('done');
+      setQuestion('');
+    } catch (err) {
+      setError(errorMessage(err));
+      setState('idle');
+    }
+  };
+
+  if (state === 'done') {
+    return (
+      <Shell theme={theme}>
+        <div className="py-6 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand/15 text-brand">
+            <Check className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold">{c.success_message || 'Thank you! Your question has been submitted.'}</h2>
+          <button
+            type="button"
+            onClick={() => setState('idle')}
+            className={cx('mt-6 rounded-lg px-4 py-2 text-sm font-medium', theme.chip)}
+          >
+            Ask another question
+          </button>
+        </div>
+      </Shell>
+    );
+  }
+
+  const inputCls = cx('w-full rounded-xl border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand/40', theme.input);
+
+  return (
+    <Shell theme={theme}>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
+          <HelpCircle className="h-3.5 w-3.5" />
+          <span>Live Q&A</span>
+        </span>
+      </div>
+      <Title theme={theme}>{title}</Title>
+      {c.intro && <p className={cx('text-sm', theme.muted)}>{c.intro}</p>}
+
+      <form onSubmit={onSubmit} className="space-y-4">
+        <input
+          type="text"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          className="hidden"
+          aria-hidden="true"
+        />
+
+        <div>
+          <label className={cx('mb-1.5 block text-xs font-semibold uppercase tracking-wider', theme.muted)}>
+            Your Question <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            required
+            rows={4}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Type your question here..."
+            className={inputCls}
+          />
+        </div>
+
+        {c.allow_anonymous !== false && !c.require_name ? (
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+              <input
+                type="checkbox"
+                checked={isAnonymous}
+                onChange={(e) => setIsAnonymous(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
+              />
+              <span>Ask anonymously</span>
+            </label>
+
+            {!isAnonymous && (
+              <div>
+                <label className={cx('mb-1.5 block text-xs font-semibold uppercase tracking-wider', theme.muted)}>
+                  Your Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Sarah"
+                  className={inputCls}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <label className={cx('mb-1.5 block text-xs font-semibold uppercase tracking-wider', theme.muted)}>
+              Your Name {c.require_name && <span className="text-red-500">*</span>}
+            </label>
+            <input
+              type="text"
+              required={Boolean(c.require_name)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Sarah"
+              className={inputCls}
+            />
+          </div>
+        )}
+
+        {error && <p className="text-sm font-medium text-red-500">{error}</p>}
+
+        <button type="submit" disabled={state === 'busy' || preview} className={primaryBtn}>
+          <Send className="h-4 w-4" />
+          <span>{state === 'busy' ? 'Sending...' : c.submit_label || 'Submit Question'}</span>
         </button>
       </form>
     </Shell>

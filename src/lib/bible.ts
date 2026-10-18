@@ -6,16 +6,37 @@
 export interface VerseResult {
   reference: string;
   text: string;
+  translation_id?: string;
   translation_name?: string;
 }
 
+export interface BibleTranslation {
+  id: string;
+  name: string;
+  shortName: string;
+}
+
+export const SUPPORTED_TRANSLATIONS: BibleTranslation[] = [
+  { id: 'web', name: 'World English Bible', shortName: 'WEB' },
+  { id: 'kjv', name: 'King James Version', shortName: 'KJV' },
+  { id: 'bbe', name: 'Bible in Basic English', shortName: 'BBE' },
+  { id: 'oeb-us', name: 'Open English Bible (US)', shortName: 'OEB' },
+  { id: 'webbe', name: 'World English Bible (British)', shortName: 'WEB-BE' },
+  { id: 'rvr', name: 'Reina Valera (Spanish)', shortName: 'RVR' },
+  { id: 'almeida', name: 'Almeida (Portuguese)', shortName: 'Almeida' },
+];
+
 const memoryCache = new Map<string, VerseResult>();
 
-export async function fetchBibleVerse(reference: string): Promise<VerseResult | null> {
+export async function fetchBibleVerse(
+  reference: string,
+  translation = 'web'
+): Promise<VerseResult | null> {
   const query = reference.trim();
   if (!query) return null;
 
-  const cacheKey = `sb_bible:${query.toLowerCase().replace(/\s+/g, '+')}`;
+  const trans = translation.toLowerCase().trim() || 'web';
+  const cacheKey = `sb_bible:${trans}:${query.toLowerCase().replace(/\s+/g, '+')}`;
 
   // Check in-memory cache first
   if (memoryCache.has(cacheKey)) {
@@ -36,7 +57,7 @@ export async function fetchBibleVerse(reference: string): Promise<VerseResult | 
 
   try {
     const encoded = encodeURIComponent(query);
-    const res = await fetch(`https://bible-api.com/${encoded}`);
+    const res = await fetch(`https://bible-api.com/${encoded}?translation=${encodeURIComponent(trans)}`);
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -45,7 +66,8 @@ export async function fetchBibleVerse(reference: string): Promise<VerseResult | 
     const result: VerseResult = {
       reference: data.reference || query,
       text: data.text.trim(),
-      translation_name: data.translation_name || 'WEB',
+      translation_id: trans,
+      translation_name: data.translation_name || trans.toUpperCase(),
     };
 
     memoryCache.set(cacheKey, result);
@@ -57,7 +79,7 @@ export async function fetchBibleVerse(reference: string): Promise<VerseResult | 
 
     return result;
   } catch (err) {
-    console.warn(`Could not load Bible verse for "${query}":`, err);
+    console.warn(`Could not load Bible verse for "${query}" (${trans}):`, err);
     return null;
   }
 }

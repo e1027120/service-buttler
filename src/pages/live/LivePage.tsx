@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Markdown } from '../../components/Markdown';
 import { Spinner, cx } from '../../components/ui';
-import { fetchLivePage } from '../../lib/api';
+import { fetchLivePage, getVoterToken, logScan } from '../../lib/api';
 import type { LivePage as LivePageData } from '../../lib/types';
 import { brandStyle, formatInZone } from '../../lib/utils';
+import { useScreenWakeLock } from '../../lib/wakeLock';
+import { FirstTimeModal } from '../../components/FirstTimeModal';
 import { ActionView, type ThemeTokens } from './ActionView';
 import { NotesHistoryModal } from './NotesHistoryModal';
 
@@ -53,6 +55,9 @@ export default function LivePage() {
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
+  // Keep screen awake while attendee is following along with live service
+  useScreenWakeLock(!isEmbedPreview);
+
   const load = useCallback(async (bypassCache = false) => {
     try {
       const page = await fetchLivePage(churchSlug, serviceSlug, previewAt, bypassCache);
@@ -73,9 +78,11 @@ export default function LivePage() {
   useEffect(() => {
     if (isEmbedPreview || !churchSlug) return;
 
-    // Supabase Realtime channel for instant reactivity (<200ms)
+    // Supabase Realtime channel for instant reactivity (<200ms) and attendee presence
     const channel = supabase
-      .channel(`live:${churchSlug}`)
+      .channel(`live:${churchSlug}`, {
+        config: { presence: { key: getVoterToken() } },
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'actions' }, () => {
         load(true);
       })
@@ -85,12 +92,33 @@ export default function LivePage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'churches' }, () => {
         load(true);
       })
-      .subscribe();
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED' && !isEmbedPreview) {
+          try {
+            await channel.track({
+              online_at: new Date().toISOString(),
+              device: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [churchSlug, isEmbedPreview, load]);
+
+  // Log QR scan telemetry if arrived via QR code
+  useEffect(() => {
+    if (isEmbedPreview || !churchSlug) return;
+    const params = new URLSearchParams(window.location.search);
+    const src = params.get('src') || params.get('ref') || params.get('source');
+    if (src === 'qr') {
+      logScan(churchSlug, serviceSlug, 'qr');
+    }
+  }, [churchSlug, serviceSlug, isEmbedPreview]);
 
   // Poll for live changes as fallback (disabled inside admin iframe preview)
   useEffect(() => {
@@ -174,8 +202,17 @@ export default function LivePage() {
   return (
     <div className={cx('min-h-screen pb-[env(safe-area-inset-bottom)]', theme.page)} style={brandStyle(church.primary_color, church.accent_color)}>
       <div className="mx-auto flex min-h-screen max-w-xl flex-col px-4 pb-8 pt-[max(1rem,env(safe-area-inset-top))]">
-        {/* Header */}
-        <header className="flex items-center justify-between gap-3 py-3">
+        {/* Sticky Header with Backdrop Blur */}
+        <header
+          className={cx(
+            'sticky top-0 z-30 -mx-4 mb-3 flex items-center justify-between gap-3 px-4 py-2.5 backdrop-blur-md transition-colors border-b',
+            landing.theme === 'brand'
+              ? 'bg-brand/90 text-white border-white/10 shadow-xs'
+              : theme.page.includes('slate-950')
+              ? 'bg-slate-950/90 text-white border-white/10 shadow-xs'
+              : 'bg-slate-100/90 text-slate-900 border-black/5 shadow-xs'
+          )}
+        >
           <div className="flex min-w-0 items-center gap-3">
             {church.logo_url ? (
               <img src={church.logo_url} alt={church.name} className="h-10 w-10 shrink-0 rounded-xl bg-white object-contain p-1" />
@@ -279,6 +316,9 @@ export default function LivePage() {
           churchSlug={church.slug}
           landingConfig={landing}
         />
+
+        {/* Global First-Time Attendee Onboarding */}
+        {!isEmbedPreview && <FirstTimeModal churchName={church.name} />}
 
         {/* Footer */}
         {(landing.links?.length || landing.footer_text) && (
