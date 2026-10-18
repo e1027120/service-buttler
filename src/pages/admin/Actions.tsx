@@ -275,7 +275,7 @@ export default function Actions() {
 
       {viewMode === 'timeline' && (
         <WaterfallTimeline
-          actions={filtered}
+          actions={actions}
           services={services}
           selectedServiceId={serviceFilter}
           onSelectService={setServiceFilter}

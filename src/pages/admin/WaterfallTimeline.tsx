@@ -45,34 +45,66 @@ export function formatMinuteWithTime(offsetMinutes: number, baseTimeStr?: string
   return `${prefix} (${clock})`;
 }
 
-function getServiceStartTime(service?: Service | null): string | null {
-  if (!service?.service_times || service.service_times.length === 0) return null;
-  const activeTime = service.service_times.find((t) => t.is_active !== false) || service.service_times[0];
-  return activeTime?.start_time || null;
+export interface NowInZone {
+  hours: number;
+  minutes: number;
+  seconds: number;
+  timeStr: string;
+  dayOfWeek: number;
+  dateStr: string;
 }
 
-function getNowInZone(timezone?: string): { hours: number; minutes: number; seconds: number; timeStr: string } {
+function getNowInZone(timezone?: string): NowInZone {
   const now = new Date();
   try {
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone || undefined,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short',
       hour: 'numeric',
       minute: 'numeric',
       second: 'numeric',
       hour12: false,
     });
     const parts = formatter.formatToParts(now);
-    const h = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10);
-    const m = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10);
-    const s = parseInt(parts.find((p) => p.type === 'second')?.value || '0', 10);
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+
+    const h = parseInt(getPart('hour') || '0', 10);
+    const m = parseInt(getPart('minute') || '0', 10);
+    const s = parseInt(getPart('second') || '0', 10);
     const cleanH = h === 24 ? 0 : h;
+
+    const year = getPart('year') || String(now.getFullYear());
+    const month = getPart('month') || String(now.getMonth() + 1).padStart(2, '0');
+    const day = getPart('day') || String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    const weekdayMap: Record<string, number> = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
+    };
+    const weekdayStr = getPart('weekday');
+    const dayOfWeek = weekdayStr in weekdayMap ? weekdayMap[weekdayStr] : now.getDay();
+
     return {
       hours: cleanH,
       minutes: m,
       seconds: s,
       timeStr: `${cleanH}:${m.toString().padStart(2, '0')}`,
+      dayOfWeek,
+      dateStr,
     };
   } catch {
+    const y = now.getFullYear();
+    const mth = (now.getMonth() + 1).toString().padStart(2, '0');
+    const d = now.getDate().toString().padStart(2, '0');
     const h = now.getHours();
     const m = now.getMinutes();
     const s = now.getSeconds();
@@ -81,8 +113,101 @@ function getNowInZone(timezone?: string): { hours: number; minutes: number; seco
       minutes: m,
       seconds: s,
       timeStr: `${h}:${m.toString().padStart(2, '0')}`,
+      dayOfWeek: now.getDay(),
+      dateStr: `${y}-${mth}-${d}`,
     };
   }
+}
+
+export interface BestServiceTimeResult {
+  timeStr: string;
+  serviceName?: string;
+  serviceId?: string;
+}
+
+export function findBestServiceTime(
+  services: Service[],
+  targetServiceId: string | null | undefined,
+  nowInZone: NowInZone,
+): BestServiceTimeResult {
+  const candidateServices =
+    targetServiceId && targetServiceId !== 'all' && targetServiceId !== 'church'
+      ? services.filter((s) => s.id === targetServiceId)
+      : services.filter((s) => s.is_active !== false);
+
+  const effectiveServices = candidateServices.length > 0 ? candidateServices : services;
+  const nowMinutesFromMidnight = nowInZone.hours * 60 + nowInZone.minutes + nowInZone.seconds / 60;
+
+  interface CandidateMatch {
+    service: Service;
+    timeStr: string;
+    diffMinutes: number;
+    isToday: boolean;
+    isInLiveWindow: boolean;
+  }
+
+  const matches: CandidateMatch[] = [];
+
+  for (const s of effectiveServices) {
+    for (const t of s.service_times || []) {
+      if (t.is_active === false || !t.start_time) continue;
+      const parsed = parseBaseTime(t.start_time);
+      if (!parsed) continue;
+
+      const baseMinutes = parsed.hours * 60 + parsed.minutes;
+      let diff = nowMinutesFromMidnight - baseMinutes;
+      if (diff < -720) diff += 1440;
+      if (diff > 720) diff -= 1440;
+
+      const isToday =
+        Boolean(t.specific_date && t.specific_date === nowInZone.dateStr) ||
+        Boolean(t.day_of_week !== null && t.day_of_week === nowInZone.dayOfWeek) ||
+        (t.specific_date === null && t.day_of_week === null);
+
+      const isInLiveWindow = diff >= MIN_START && diff <= MAX_END;
+
+      matches.push({
+        service: s,
+        timeStr: t.start_time.slice(0, 5),
+        diffMinutes: diff,
+        isToday,
+        isInLiveWindow,
+      });
+    }
+  }
+
+  if (matches.length === 0) {
+    for (const s of services) {
+      for (const t of s.service_times || []) {
+        if (t.is_active !== false && t.start_time) {
+          return { timeStr: t.start_time.slice(0, 5), serviceName: s.name, serviceId: s.id };
+        }
+      }
+    }
+    return { timeStr: '09:00' };
+  }
+
+  matches.sort((a, b) => {
+    const aLiveToday = a.isToday && a.isInLiveWindow;
+    const bLiveToday = b.isToday && b.isInLiveWindow;
+    if (aLiveToday && !bLiveToday) return -1;
+    if (!aLiveToday && bLiveToday) return 1;
+
+    if (a.isInLiveWindow && !b.isInLiveWindow) return -1;
+    if (!a.isInLiveWindow && b.isInLiveWindow) return 1;
+
+    if (a.isToday && !b.isToday) return -1;
+    if (!a.isToday && b.isToday) return 1;
+
+    return Math.abs(a.diffMinutes) - Math.abs(b.diffMinutes);
+  });
+
+  const best = matches[0];
+  return {
+    timeStr: best.timeStr,
+    serviceName: best.service.name,
+    serviceId: best.service.id,
+  };
 }
 
 export function WaterfallTimeline({
@@ -277,11 +402,8 @@ export function WaterfallTimeline({
   // Time markers: -15, 0, 15, 30, 45, 60, 75, 90
   const ticks = [-15, 0, 15, 30, 45, 60, 75, 90];
 
-  const selectedService = services.find((s) => s.id === selectedServiceId);
-  const defaultServiceTime =
-    getServiceStartTime(selectedService) ||
-    services.map(getServiceStartTime).find(Boolean) ||
-    '09:00';
+  const bestMatch = findBestServiceTime(services, selectedServiceId, nowInZone);
+  const defaultServiceTime = bestMatch.timeStr;
 
   // Calculate live playhead minute relative to service start
   const baseTime = parseBaseTime(defaultServiceTime) || { hours: 9, minutes: 0 };
@@ -352,11 +474,11 @@ export function WaterfallTimeline({
             ) : isLiveInRange ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live in Service ({nowInZone.timeStr})
+                Live: {bestMatch.serviceName ? `${bestMatch.serviceName} ` : ''}({nowInZone.timeStr})
               </span>
             ) : (
               <span className="text-[11px] text-slate-500 font-medium">
-                Clock: {nowInZone.timeStr}
+                Clock: {nowInZone.timeStr} ({defaultServiceTime})
               </span>
             )}
           </div>
@@ -366,7 +488,7 @@ export function WaterfallTimeline({
         {selectedAction ? (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-slate-600 truncate max-w-[200px]">
-              {selectedAction.title} ({formatMinuteWithTime(selectedAction.start_offset_minutes ?? 0, defaultServiceTime)}):
+              {selectedAction.title} ({formatMinuteWithTime(selectedAction.start_offset_minutes ?? 0, selectedAction.service_id ? findBestServiceTime(services, selectedAction.service_id, nowInZone).timeStr : defaultServiceTime)}):
             </span>
             <Button
               variant="secondary"
@@ -524,10 +646,9 @@ export function WaterfallTimeline({
                 );
                 const widthPercent = Math.max(4, rightPercent - leftPercent);
 
-                const actionService = action.service_id
-                  ? services.find((s) => s.id === action.service_id)
-                  : selectedService;
-                const actionBaseTime = getServiceStartTime(actionService) || defaultServiceTime;
+                const actionBaseTime = action.service_id
+                  ? findBestServiceTime(services, action.service_id, nowInZone).timeStr
+                  : defaultServiceTime;
                 const startDisplay = formatMinuteWithTime(startMins, actionBaseTime);
                 const endDisplay = formatMinuteWithTime(endMins, actionBaseTime);
 
