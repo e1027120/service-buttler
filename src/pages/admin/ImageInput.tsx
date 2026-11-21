@@ -1,7 +1,7 @@
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button, Input, useToast } from '../../components/ui';
-import { uploadChurchAsset } from '../../lib/supabase';
+import { uploadChurchAsset } from '../../lib/api';
 import { errorMessage } from '../../lib/utils';
 
 export function ImageInput({ churchId, label, value, onChange }: { churchId: string; label: string; value?: string | null; onChange: (url: string | undefined) => void }) {

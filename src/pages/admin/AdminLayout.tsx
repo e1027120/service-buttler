@@ -18,8 +18,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PageLoader, cx } from '../../components/ui';
+import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { supabase } from '../../lib/supabase';
 import type { Church, MemberRole, Membership } from '../../lib/types';
 import { brandStyle } from '../../lib/utils';
 import type { AdminContext } from './context';
@@ -62,12 +62,12 @@ export default function AdminLayout() {
     if (!userId) return;
     if (isInitial) setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('church_members')
-        .select('church_id, role, churches(*)')
-        .eq('user_id', userId);
-      if (error) throw error;
-      const list = (data as unknown as Membership[]).filter((m) => m.churches);
+      const data = await api.churches.list();
+      const list: Membership[] = data.map((c) => ({
+        church_id: c.id,
+        role: c.role,
+        churches: c,
+      }));
       setMemberships(list.sort((a, b) => a.churches.name.localeCompare(b.churches.name)));
       const current = list.find((m) => m.church_id === churchId);
       if (!current) {

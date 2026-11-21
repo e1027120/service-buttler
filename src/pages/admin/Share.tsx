@@ -2,7 +2,7 @@ import { Check, Copy, Download, ExternalLink, Smartphone } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Field, Select, useToast } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Service } from '../../lib/types';
 import { landingUrl } from '../../lib/utils';
 import { PageHeader } from './AdminLayout';
@@ -17,12 +17,7 @@ export default function Share() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    supabase
-      .from('services')
-      .select('*')
-      .eq('church_id', church.id)
-      .order('name')
-      .then(({ data }) => setServices((data as Service[]) || []));
+    api.services.list(church.id).then(setServices).catch(() => setServices([]));
   }, [church.id]);
 
   const selectedService = services.find((s) => s.id === target);

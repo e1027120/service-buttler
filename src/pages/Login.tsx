@@ -2,12 +2,12 @@ import { ArrowRight, Church as ChurchIcon } from 'lucide-react';
 import { type ChangeEvent, type FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Field, Input, useToast } from '../components/ui';
+import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { initRuntimeConfig, isSupabaseConfigured, supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/utils';
 
 export default function Login() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const toast = useToast();
@@ -19,13 +19,28 @@ export default function Login() {
   const [fullName, setFullName] = useState('');
   const [busy, setBusy] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
-  const [configured, setConfigured] = useState(isSupabaseConfigured);
 
+  // Auto-verify magic link callback if tokens are in URL
   useEffect(() => {
-    if (!configured) {
-      initRuntimeConfig().then((ok) => setConfigured(ok));
+    const magicToken = params.get('magic_token');
+    const magicEmail = params.get('email');
+    if (magicToken && magicEmail) {
+      setBusy(true);
+      api.auth
+        .verifyMagicLink(magicToken, magicEmail)
+        .then(async () => {
+          await refreshUser();
+          toast('Signed in successfully!');
+          navigate(next, { replace: true });
+        })
+        .catch((err) => {
+          toast(errorMessage(err), 'error');
+        })
+        .finally(() => {
+          setBusy(false);
+        });
     }
-  }, [configured]);
+  }, [params, next, navigate, refreshUser, toast]);
 
   if (user) {
     navigate(next, { replace: true });
@@ -34,35 +49,20 @@ export default function Login() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!configured && !isSupabaseConfigured) {
-      toast('Supabase credentials not configured', 'error');
-      return;
-    }
     setBusy(true);
     try {
       if (mode === 'magic') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: email.trim().toLowerCase(),
-          options: { emailRedirectTo: `${window.location.origin}/admin` },
-        });
-        if (error) throw error;
+        await api.auth.sendMagicLink(email.trim().toLowerCase());
         setMagicSent(true);
         toast('Magic link sent to your email');
       } else if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
-          password,
-          options: { data: { full_name: fullName.trim() } },
-        });
-        if (error) throw error;
+        await api.auth.signup(email.trim().toLowerCase(), password, fullName.trim() || undefined);
+        await refreshUser();
         toast('Account created! Logging you in…');
         navigate(next, { replace: true });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
-        if (error) throw error;
+        await api.auth.login(email.trim().toLowerCase(), password);
+        await refreshUser();
         navigate(next, { replace: true });
       }
     } catch (err) {
@@ -82,12 +82,6 @@ export default function Login() {
           <h1 className="text-2xl font-bold text-slate-900">Service Buttler</h1>
           <p className="mt-1 text-sm text-slate-500">Sign in to manage your church services and live actions.</p>
         </div>
-
-        {!configured && !isSupabaseConfigured && (
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            <strong>Supabase credentials not configured.</strong> Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in your <code>.env</code> file.
-          </div>
-        )}
 
         {magicSent ? (
           <div className="py-6 text-center">

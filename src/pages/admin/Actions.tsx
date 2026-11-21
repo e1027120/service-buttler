@@ -1,8 +1,7 @@
 import { ArrowDown, ArrowUp, Clock, Eye, FastForward, LayoutList, Pencil, Pin, Plus, Radio, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, EmptyState, Field, Input, Modal, PageLoader, Select, Toggle, useToast } from '../../components/ui';
-import { fetchPlanningCenterLive } from '../../lib/api';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api, fetchPlanningCenterLive } from '../../lib/api';
 import { ACTION_TYPES, type Action, type ActionType, type Church, type LiveAction, type Service } from '../../lib/types';
 import { brandStyle, describeOffsets, errorMessage } from '../../lib/utils';
 import { ActionView } from '../live/ActionView';
@@ -53,12 +52,7 @@ export default function Actions() {
 
   const updateOffsets = async (actionId: string, start: number | null, end: number | null) => {
     try {
-      unwrap(
-        await supabase
-          .from('actions')
-          .update({ start_offset_minutes: start, end_offset_minutes: end })
-          .eq('id', actionId),
-      );
+      await api.actions.update({ id: actionId, start_offset_minutes: start, end_offset_minutes: end });
       load();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -93,10 +87,7 @@ export default function Actions() {
         targetActions.map((a) => {
           const s = (a.start_offset_minutes ?? 0) + delayMinutes;
           const e = (a.end_offset_minutes ?? (a.start_offset_minutes ?? 0) + 20) + delayMinutes;
-          return supabase
-            .from('actions')
-            .update({ start_offset_minutes: s, end_offset_minutes: e })
-            .eq('id', a.id);
+          return api.actions.update({ id: a.id, start_offset_minutes: s, end_offset_minutes: e });
         }),
       );
       toast(`Shifted ${targetActions.length} actions by +${delayMinutes}m to match stage clock`);
@@ -107,12 +98,11 @@ export default function Actions() {
   };
 
   const load = useCallback(async () => {
-    const [acts, srvs] = await Promise.all([
-      supabase.from('actions').select('*').eq('church_id', church.id).order('priority', { ascending: false }).order('sort_order').order('created_at'),
-      supabase.from('services').select('*, service_times(*)').eq('church_id', church.id).order('name'),
+    const [acts, sList] = await Promise.all([
+      api.actions.list(church.id),
+      api.services.list(church.id),
     ]);
-    setActions(unwrap(acts) as Action[]);
-    const sList = unwrap(srvs) as Service[];
+    setActions(acts);
     setServices(sList);
     // Find any pinned action across services
     const pinned = sList.find((s) => s.live_action_id)?.live_action_id;
@@ -125,7 +115,7 @@ export default function Actions() {
 
   const remove = async (a: Action) => {
     try {
-      unwrap(await supabase.from('actions').delete().eq('id', a.id));
+      await api.actions.delete(a.id);
       toast('Action deleted');
       load();
     } catch (e) {
@@ -135,7 +125,7 @@ export default function Actions() {
 
   const toggle = async (a: Action) => {
     try {
-      unwrap(await supabase.from('actions').update({ is_active: !a.is_active }).eq('id', a.id));
+      await api.actions.update({ id: a.id, is_active: !a.is_active });
       load();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -149,7 +139,7 @@ export default function Actions() {
     }
     const isPinned = liveActionId === a.id;
     try {
-      unwrap(await supabase.from('services').update({ live_action_id: isPinned ? null : a.id }).eq('id', a.service_id));
+      await api.services.update({ id: a.service_id, live_action_id: isPinned ? null : a.id });
       toast(isPinned ? 'Live pin cleared' : `“${a.title}” is now pinned on top!`);
       load();
     } catch (e) {
@@ -165,8 +155,8 @@ export default function Actions() {
     if (!target) return;
     try {
       await Promise.all([
-        supabase.from('actions').update({ sort_order: target.sort_order }).eq('id', a.id),
-        supabase.from('actions').update({ sort_order: a.sort_order }).eq('id', target.id),
+        api.actions.update({ id: a.id, sort_order: target.sort_order }),
+        api.actions.update({ id: target.id, sort_order: a.sort_order }),
       ]);
       load();
     } catch (e) {
@@ -455,29 +445,11 @@ function ActionModal({
       sort_order: Number(form.sort_order) || 0,
     };
     try {
-      if (initial.id) unwrap(await supabase.from('actions').update(payload).eq('id', initial.id));
-      else unwrap(await supabase.from('actions').insert(payload));
+      if (initial.id) await api.actions.update({ id: initial.id, ...payload });
+      else await api.actions.create(payload as any);
       toast('Action saved');
       onSaved();
     } catch (e) {
-      if (type === 'question' && errorMessage(e).toLowerCase().includes('action_type')) {
-        // Fallback for database instances where ALTER TYPE action_type ADD VALUE 'question' has not run yet
-        const fallbackPayload = {
-          ...payload,
-          type: 'form',
-          content: { ...payload.content, form_type: 'question' },
-        };
-        try {
-          if (initial.id) unwrap(await supabase.from('actions').update(fallbackPayload).eq('id', initial.id));
-          else unwrap(await supabase.from('actions').insert(fallbackPayload));
-          toast('Action saved');
-          onSaved();
-          return;
-        } catch (err2) {
-          toast(errorMessage(err2), 'error');
-          return;
-        }
-      }
       toast(errorMessage(e), 'error');
     } finally {
       setBusy(false);

@@ -20,8 +20,8 @@ import {
   useToast,
 } from '../../components/ui';
 import { getDefaultSermonRecord } from '../../lib/sermons';
-import { supabase, unwrap } from '../../lib/supabase';
-import type { Action, SermonNotesContent, SermonRecord } from '../../lib/types';
+import { api } from '../../lib/api';
+import type { SermonNotesContent, SermonRecord } from '../../lib/types';
 import { errorMessage, shortId } from '../../lib/utils';
 import { ActionsSubNav } from './ActionsSubNav';
 import { PageHeader } from './AdminLayout';
@@ -61,36 +61,28 @@ export default function SermonNotesLibrary() {
       sermons: nextList,
     };
 
-    unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+    await api.churches.update({ id: church.id, landing: nextLanding });
 
     // Also sync any live actions linked to this sermon so they immediately receive the latest slides
     try {
-      const { data: linkedActions } = await supabase
-        .from('actions')
-        .select('id, content')
-        .eq('church_id', church.id)
-        .eq('type', 'sermon_notes');
+      const actions = await api.actions.list(church.id);
+      const linkedActions = actions.filter((a) => a.type === 'sermon_notes');
 
-      if (linkedActions) {
-        for (const act of linkedActions) {
-          const c = act.content as SermonNotesContent;
-          if (c && String(c.sermon_id) === String(saved.id)) {
-            await supabase
-              .from('actions')
-              .update({
-                title: saved.title,
-                content: {
-                  ...c,
-                  sermon_id: saved.id,
-                  speaker: saved.speaker,
-                  main_verse: saved.main_verse,
-                  slides: saved.slides || [],
-                  allow_personal_notes: saved.allow_personal_notes,
-                },
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', act.id);
-          }
+      for (const act of linkedActions) {
+        const c = act.content as SermonNotesContent;
+        if (c && String(c.sermon_id) === String(saved.id)) {
+          await api.actions.update({
+            id: act.id,
+            title: saved.title,
+            content: {
+              ...c,
+              sermon_id: saved.id,
+              speaker: saved.speaker,
+              main_verse: saved.main_verse,
+              slides: saved.slides || [],
+              allow_personal_notes: saved.allow_personal_notes,
+            },
+          });
         }
       }
     } catch {
@@ -118,7 +110,7 @@ export default function SermonNotesLibrary() {
         sermons: nextList,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
       await reloadChurch();
       toast(`Duplicated "${sermon.title}"`);
     } catch (err) {
@@ -134,7 +126,7 @@ export default function SermonNotesLibrary() {
         sermons: nextList,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
       await reloadChurch();
       toast('Sermon deleted from archive');
     } catch (err) {
@@ -155,41 +147,29 @@ export default function SermonNotesLibrary() {
       };
 
       // Check if there's already an existing action linked to this sermon
-      const { data: existingActions } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('church_id', church.id)
-        .eq('type', 'sermon_notes');
-
-      const existing = (existingActions as Action[] | null)?.find(
-        (a) => String((a.content as SermonNotesContent)?.sermon_id) === String(sermon.id),
+      const existingActions = await api.actions.list(church.id);
+      const existing = existingActions.find(
+        (a) => a.type === 'sermon_notes' && String((a.content as SermonNotesContent)?.sermon_id) === String(sermon.id),
       );
 
       if (existing) {
-        unwrap(
-          await supabase
-            .from('actions')
-            .update({
-              title: sermon.title,
-              content: content as Record<string, unknown>,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existing.id),
-        );
+        await api.actions.update({
+          id: existing.id,
+          title: sermon.title,
+          content: content as Record<string, unknown>,
+        });
         toast(`Updated existing Live Action "${sermon.title}"`);
       } else {
-        unwrap(
-          await supabase.from('actions').insert({
-            church_id: church.id,
-            service_id: null,
-            type: 'sermon_notes',
-            title: sermon.title,
-            content: content as Record<string, unknown>,
-            is_active: true,
-            priority: 50,
-            sort_order: 10,
-          }),
-        );
+        await api.actions.create({
+          church_id: church.id,
+          service_id: null,
+          type: 'sermon_notes',
+          title: sermon.title,
+          content: content as Record<string, unknown>,
+          is_active: true,
+          priority: 50,
+          sort_order: 10,
+        });
         toast(`Created new Live Action for "${sermon.title}"!`);
       }
     } catch (err) {

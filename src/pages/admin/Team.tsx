@@ -1,8 +1,8 @@
 import { Check, Copy, Trash2, UserPlus } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, Field, Input, Modal, PageLoader, Select, useToast } from '../../components/ui';
+import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { supabase, unwrap } from '../../lib/supabase';
 import type { Invitation, Member, MemberRole } from '../../lib/types';
 import { errorMessage, formatInZone } from '../../lib/utils';
 import { PageHeader } from './AdminLayout';
@@ -17,13 +17,9 @@ export default function Team() {
   const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
-    const [mRes, iRes] = await Promise.all([
-      supabase.rpc('list_members', { p_church: church.id }),
-      supabase.from('church_invitations').select('*').eq('church_id', church.id).order('created_at'),
-    ]);
-    if (mRes.error) throw mRes.error;
-    setMembers(mRes.data as Member[]);
-    setInvitations((iRes.data as Invitation[]) || []);
+    const data = await api.team.list(church.id);
+    setMembers(data.members as Member[]);
+    setInvitations(data.invitations);
   }, [church.id]);
 
   useEffect(() => {
@@ -32,7 +28,7 @@ export default function Team() {
 
   const removeMember = async (m: Member) => {
     try {
-      unwrap(await supabase.from('church_members').delete().eq('church_id', church.id).eq('user_id', m.user_id));
+      await api.team.removeMember(church.id, m.user_id);
       toast('Member removed');
       load();
     } catch (e) {
@@ -42,7 +38,7 @@ export default function Team() {
 
   const updateRole = async (m: Member, newRole: MemberRole) => {
     try {
-      unwrap(await supabase.from('church_members').update({ role: newRole }).eq('church_id', church.id).eq('user_id', m.user_id));
+      await api.team.updateRole(church.id, m.user_id, newRole);
       toast('Role updated');
       load();
     } catch (e) {
@@ -52,7 +48,7 @@ export default function Team() {
 
   const cancelInvite = async (inv: Invitation) => {
     try {
-      unwrap(await supabase.from('church_invitations').delete().eq('id', inv.id));
+      await api.team.cancelInvitation(church.id, inv.id);
       toast('Invitation cancelled');
       load();
     } catch (e) {
@@ -168,6 +164,7 @@ function InviteModal({
   onClose: () => void;
   onInvited: () => void;
 }) {
+  const { user } = useAuth();
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<MemberRole>('editor');
@@ -191,54 +188,18 @@ function InviteModal({
     e.preventDefault();
     setBusy(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      const inviterEmail = sessionData.session?.user?.email;
+      const res = await api.team.invite({
+        church_id: churchId,
+        church_name: churchName,
+        email: email.trim().toLowerCase(),
+        role,
+        inviter_name: user?.email || undefined,
+      });
 
-      let resJson: { status?: string; emailSent?: boolean; hasResendConfigured?: boolean; emailError?: string } | null = null;
-
-      if (token) {
-        try {
-          const res = await fetch('/api/team/invite', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              church_id: churchId,
-              church_name: churchName,
-              email: email.trim().toLowerCase(),
-              role,
-              inviter_name: inviterEmail,
-            }),
-          });
-          if (res.ok) {
-            resJson = await res.json();
-          }
-        } catch {
-          /* Worker endpoint unreachable, fallback to direct RPC */
-        }
-      }
-
-      if (!resJson) {
-        const { data, error } = await supabase.rpc('invite_member', {
-          p_church: churchId,
-          p_email: email.trim().toLowerCase(),
-          p_role: role,
-        });
-        if (error) throw error;
-        resJson = { status: data as string, emailSent: false, hasResendConfigured: false };
-      }
-
-      if (resJson.status === 'added') {
+      if (res.status === 'added') {
         toast('User was already registered and has been added to the team!');
-      } else if (resJson.emailSent) {
-        toast(`Invitation sent! An email was delivered to ${email}.`);
-      } else if (resJson.hasResendConfigured) {
-        toast(`Invitation recorded, but email failed: ${resJson.emailError || 'check logs'}`, 'error');
       } else {
-        toast('Invitation recorded. (Set RESEND_API_KEY in Cloudflare for automatic emails).');
+        toast(`Invitation sent to ${email}`);
       }
 
       onInvited();

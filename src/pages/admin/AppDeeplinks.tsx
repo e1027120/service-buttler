@@ -17,7 +17,7 @@ import {
   Modal,
   useToast,
 } from '../../components/ui';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { AppDeeplink } from '../../lib/types';
 import { errorMessage, shortId } from '../../lib/utils';
 import { ActionsSubNav } from './ActionsSubNav';
@@ -75,7 +75,7 @@ export default function AppDeeplinks() {
         app_deeplinks: nextList,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
       await reloadChurch();
       toast(isNew ? 'App Deeplink created' : 'App Deeplink saved');
       setEditing(null);
@@ -94,7 +94,7 @@ export default function AppDeeplinks() {
         app_deeplinks: nextList,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
       await reloadChurch();
       toast('App Deeplink deleted');
     } catch (err) {

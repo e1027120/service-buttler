@@ -3,15 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Markdown } from '../../components/Markdown';
 import { Spinner, cx } from '../../components/ui';
-import { fetchLivePage, getVoterToken, logScan } from '../../lib/api';
+import { api, fetchLivePage, getVoterToken, logScan } from '../../lib/api';
 import type { LivePage as LivePageData } from '../../lib/types';
 import { brandStyle, formatInZone } from '../../lib/utils';
 import { useScreenWakeLock } from '../../lib/wakeLock';
 import { FirstTimeModal } from '../../components/FirstTimeModal';
 import { ActionView, type ThemeTokens } from './ActionView';
 import { NotesHistoryModal } from './NotesHistoryModal';
-
-import { supabase } from '../../lib/supabase';
 
 export const THEMES: Record<'light' | 'dark' | 'brand', ThemeTokens> = {
   light: {
@@ -74,41 +72,20 @@ export default function LivePage() {
     }
   }, [churchSlug, serviceSlug, previewAt]);
 
-  // Real-time updates via Supabase WebSocket (channel listening to table changes)
+  // Attendee presence tracking heartbeat
   useEffect(() => {
     if (isEmbedPreview || !churchSlug) return;
 
-    // Supabase Realtime channel for instant reactivity (<200ms) and attendee presence
-    const channel = supabase
-      .channel(`live:${churchSlug}`, {
-        config: { presence: { key: getVoterToken() } },
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'actions' }, () => {
-        load(true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
-        load(true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'churches' }, () => {
-        load(true);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED' && !isEmbedPreview) {
-          try {
-            await channel.track({
-              online_at: new Date().toISOString(),
-              device: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop',
-            });
-          } catch {
-            /* ignore */
-          }
-        }
-      });
+    // Send initial heartbeat
+    api.presence.sendHeartbeat(churchSlug, getVoterToken()).catch(() => {});
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [churchSlug, isEmbedPreview, load]);
+    // Periodic heartbeat every 30s
+    const interval = setInterval(() => {
+      api.presence.sendHeartbeat(churchSlug, getVoterToken()).catch(() => {});
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, [churchSlug, isEmbedPreview]);
 
   // Log QR scan telemetry if arrived via QR code
   useEffect(() => {

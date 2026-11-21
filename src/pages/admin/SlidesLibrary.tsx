@@ -19,7 +19,7 @@ import {
   useToast,
 } from '../../components/ui';
 import { getDefaultSlideDefinition } from '../../lib/slides';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { SlideDefinition } from '../../lib/types';
 import { errorMessage, shortId } from '../../lib/utils';
 import { ActionsSubNav } from './ActionsSubNav';
@@ -59,7 +59,7 @@ export default function SlidesLibrary() {
       slides: nextList,
     };
 
-    unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+    await api.churches.update({ id: church.id, landing: nextLanding });
     await reloadChurch();
     toast(isNew ? 'Slide created and added to library' : 'Slide saved');
   };
@@ -80,7 +80,7 @@ export default function SlidesLibrary() {
         slides: nextList,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
       await reloadChurch();
       toast(`Duplicated "${slide.name}"`);
     } catch (err) {
@@ -96,7 +96,7 @@ export default function SlidesLibrary() {
         slides: nextList,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
       await reloadChurch();
       toast('Slide deleted from library');
     } catch (err) {

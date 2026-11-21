@@ -260,6 +260,14 @@ export interface PollContent {
   closed?: boolean;
 }
 
+export interface PollVote {
+  id: string;
+  action_id: string;
+  option_id: string;
+  voter_token: string;
+  created_at: string;
+}
+
 export interface OfferingMethod {
   id: string;
   label: string;

@@ -3,7 +3,7 @@ import { type FormEvent, useState } from 'react';
 import { DEFAULT_WELCOME_HIGHLIGHTS, FirstTimeModal } from '../../components/FirstTimeModal';
 import { Markdown } from '../../components/Markdown';
 import { Button, Field, Input, Select, Textarea, Toggle, cx, useToast } from '../../components/ui';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { LandingConfig, LandingLink, WelcomeModalHighlight, WelcomeModalIcon } from '../../lib/types';
 import { brandStyle, errorMessage, landingUrl, timezones } from '../../lib/utils';
 import { THEMES } from '../live/LivePage';
@@ -38,12 +38,10 @@ export default function Branding() {
     setLanding(updatedLanding);
     setBusy(true);
     try {
-      unwrap(
-        await supabase
-          .from('churches')
-          .update({ landing: updatedLanding })
-          .eq('id', church.id),
-      );
+      await api.churches.update({
+        id: church.id,
+        landing: updatedLanding,
+      });
       toast(`Modal reset (v${nextVersion})! It will appear again for all attendees on their next visit.`);
       await reloadChurch();
     } catch (err) {
@@ -61,19 +59,15 @@ export default function Branding() {
     }
     setBusy(true);
     try {
-      unwrap(
-        await supabase
-          .from('churches')
-          .update({
-            name: name.trim(),
-            timezone: tz,
-            logo_url: logoUrl || null,
-            primary_color: primary,
-            accent_color: accent,
-            landing,
-          })
-          .eq('id', church.id),
-      );
+      await api.churches.update({
+        id: church.id,
+        name: name.trim(),
+        timezone: tz,
+        logo_url: logoUrl || null,
+        primary_color: primary,
+        accent_color: accent,
+        landing,
+      });
       toast('Branding and landing page saved');
       await reloadChurch();
     } catch (err) {

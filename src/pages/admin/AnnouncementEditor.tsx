@@ -17,7 +17,7 @@ import {
   getDefaultSlideDefinition,
   slideDefinitionToAnnouncementSlide,
 } from '../../lib/slides';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type {
   AnnouncementContent,
   AnnouncementSlide,
@@ -116,7 +116,7 @@ export function AnnouncementEditor({ value, onChange, churchId, church }: Props)
       slides: nextLibrary,
     };
 
-    unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+    await api.churches.update({ id: church.id, landing: nextLanding });
 
     // Update in church object locally
     if (church.landing) {
@@ -148,7 +148,7 @@ export function AnnouncementEditor({ value, onChange, churchId, church }: Props)
         slides: nextLibrary,
       };
 
-      unwrap(await supabase.from('churches').update({ landing: nextLanding }).eq('id', church.id));
+      await api.churches.update({ id: church.id, landing: nextLanding });
 
       if (church.landing) {
         church.landing.slides = nextLibrary;

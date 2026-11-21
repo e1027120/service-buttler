@@ -11,3 +11,5 @@ supabase/.temp
 supabase/.branches
 coverage
 *.tsbuildinfo
+d1/data_migration.sql
+.tmp-migration-assets

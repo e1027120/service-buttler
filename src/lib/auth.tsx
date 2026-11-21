@@ -1,65 +1,85 @@
-import type { Session, User } from '@supabase/supabase-js';
 import { type ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { PageLoader } from '../components/ui';
-import { initRuntimeConfig, supabase } from './supabase';
+import { api, getAuthToken } from './api';
 
-interface AuthState {
-  session: Session | null;
-  user: User | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
+export interface AuthUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  created_at: string;
 }
 
-const AuthCtx = createContext<AuthState>({ session: null, user: null, loading: true, signOut: async () => {} });
+export interface AuthSession {
+  id: string;
+  user: AuthUser;
+}
+
+interface AuthState {
+  session: AuthSession | null;
+  user: AuthUser | null;
+  loading: boolean;
+  signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+}
+
+const AuthCtx = createContext<AuthState>({
+  session: null,
+  user: null,
+  loading: true,
+  signOut: async () => {},
+  refreshUser: async () => {},
+});
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-
-    async function init() {
-      // Check if credentials need hydration from /api/config
-      await initRuntimeConfig();
-
-      if (!active) return;
-
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (active) setSession(data.session);
-      } catch (err) {
-        console.warn('Error fetching session:', err);
-      } finally {
-        if (active) setLoading(false);
-      }
-
-      const { data } = supabase.auth.onAuthStateChange((_event, s) => {
-        if (active) setSession(s);
-      });
-
-      return () => {
-        data.subscription.unsubscribe();
-      };
+  const loadUser = async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+      return;
     }
 
-    const cleanupPromise = init();
-    return () => {
-      active = false;
-      cleanupPromise.then((clean) => clean && clean());
-    };
+    try {
+      const data = await api.auth.me();
+      if (data?.user) {
+        setUser(data.user);
+        setSession({ id: data.session.id, user: data.user });
+      } else {
+        setUser(null);
+        setSession(null);
+      }
+    } catch {
+      setUser(null);
+      setSession(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUser();
   }, []);
+
+  const signOut = async () => {
+    await api.auth.logout();
+    setUser(null);
+    setSession(null);
+  };
 
   return (
     <AuthCtx.Provider
       value={{
         session,
-        user: session?.user ?? null,
+        user,
         loading,
-        signOut: async () => {
-          await supabase.auth.signOut();
-        },
+        signOut,
+        refreshUser: loadUser,
       }}
     >
       {children}

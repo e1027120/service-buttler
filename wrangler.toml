@@ -4,7 +4,14 @@ name = "service-buttler"
 pages_build_output_dir = "./dist"
 compatibility_date = "2024-11-01"
 
-# Runtime variables for Pages Functions are NOT stored here.
-# - Local dev: they are read from .env (or .dev.vars)
-# - Production: set SUPABASE_URL / SUPABASE_ANON_KEY as Secrets in the Cloudflare Pages dashboard.
-#   The frontend reads them at runtime via /api/config (functions/api/config.ts).
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "service-buttler-db"
+database_id = "ad0f0f46-b51c-497c-a685-1629b14ab43d"
+
+# R2 Object Storage binding
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "service-buttler-assets"
+

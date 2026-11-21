@@ -2,7 +2,7 @@ import { CalendarClock, ExternalLink, Inbox, Pin, Sparkles, Users } from 'lucide
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, Button, PageLoader, useToast } from '../../components/ui';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Action, Service } from '../../lib/types';
 import { describeOffsets, errorMessage, landingUrl } from '../../lib/utils';
 import { PageHeader } from './AdminLayout';
@@ -18,17 +18,19 @@ export default function Dashboard() {
   const [liveActionId, setLiveActionId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [srvRes, actRes, respRes, memRes] = await Promise.all([
-      supabase.from('services').select('*, service_times(*)').eq('church_id', church.id).order('name'),
-      supabase.from('actions').select('*').eq('church_id', church.id).order('priority', { ascending: false }),
-      supabase.from('action_responses').select('id', { count: 'exact', head: true }).eq('church_id', church.id).eq('is_archived', false),
-      supabase.from('church_members').select('user_id', { count: 'exact', head: true }).eq('church_id', church.id),
+    const [srvList, actList, respList, teamData] = await Promise.all([
+      api.services.list(church.id),
+      api.actions.list(church.id),
+      api.responses.list(church.id),
+      api.team.list(church.id),
     ]);
-    const sList = unwrap(srvRes) as Service[];
-    setServices(sList);
-    setActions(unwrap(actRes) as Action[]);
-    setStats({ responses: respRes.count || 0, members: memRes.count || 0 });
-    setLiveActionId(sList.find((s) => s.live_action_id)?.live_action_id || null);
+    setServices(srvList);
+    setActions(actList);
+    setStats({
+      responses: respList.filter((r) => !r.is_archived).length,
+      members: teamData.members.length,
+    });
+    setLiveActionId(srvList.find((s) => s.live_action_id)?.live_action_id || null);
     setLoading(false);
   }, [church.id]);
 
@@ -40,7 +42,7 @@ export default function Dashboard() {
     if (!a.service_id) return;
     const isPinned = liveActionId === a.id;
     try {
-      unwrap(await supabase.from('services').update({ live_action_id: isPinned ? null : a.id }).eq('id', a.service_id));
+      await api.services.update({ id: a.service_id, live_action_id: isPinned ? null : a.id });
       toast(isPinned ? 'Live pin cleared' : `“${a.title}” is live on all attendee screens!`);
       load();
     } catch (e) {

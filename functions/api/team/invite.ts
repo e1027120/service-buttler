@@ -1,4 +1,5 @@
-import { type Env, errorResponse, HttpError, json, rpc } from '../../../server/supabase';
+import { assertChurchRole, authenticate } from '../../../server/auth';
+import { type Env, errorResponse, HttpError, json, readJson } from '../../../server/db';
 
 /**
  * POST /api/team/invite
@@ -7,101 +8,71 @@ import { type Env, errorResponse, HttpError, json, rpc } from '../../../server/s
  */
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   try {
-    const authHeader = ctx.request.headers.get('Authorization');
-    if (!authHeader) {
-      throw new HttpError(401, 'Unauthorized: Missing authorization header');
-    }
-
-    const body = (await ctx.request.json().catch(() => ({}))) as {
+    const { user } = await authenticate(ctx.request, ctx.env);
+    const body = await readJson<{
       church_id?: string;
       church_name?: string;
       email?: string;
       role?: string;
       inviter_name?: string;
-    };
+    }>(ctx.request);
 
     const churchId = body.church_id?.trim();
     const churchName = body.church_name?.trim() || 'Church Team';
     const email = body.email?.trim().toLowerCase();
-    const role = body.role?.trim() || 'editor';
+    const role = (body.role?.trim() || 'editor') as 'owner' | 'admin' | 'editor';
     const inviterName = body.inviter_name?.trim();
 
     if (!churchId || !email) {
       throw new HttpError(400, 'Missing church_id or email');
     }
 
-    // Call Supabase RPC under the caller's JWT token to enforce permissions (only owner/admin can invite)
-    const result = await rpc<string>(
-      ctx.env,
-      'invite_member',
-      {
-        p_church: churchId,
-        p_email: email,
-        p_role: role,
-      },
-      authHeader
-    );
+    if (role === 'owner') {
+      await assertChurchRole(ctx.env.DB, churchId, user.id, ['owner']);
+    } else {
+      await assertChurchRole(ctx.env.DB, churchId, user.id, ['owner', 'admin']);
+    }
 
-    let emailSent = false;
-    let emailError: string | null = null;
+    const targetUser = await ctx.env.DB
+      .prepare('SELECT id, email FROM users WHERE email = ?')
+      .bind(email)
+      .first<{ id: string; email: string }>();
 
-    const resendApiKey = ctx.env.RESEND_API_KEY || (ctx.env as Record<string, string>)?.VITE_RESEND_API_KEY;
+    const now = new Date().toISOString();
+    let result = 'invited';
 
+    if (targetUser) {
+      await ctx.env.DB
+        .prepare(`
+          INSERT INTO church_members (church_id, user_id, role, created_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT (church_id, user_id) DO UPDATE SET role = excluded.role
+        `)
+        .bind(churchId, targetUser.id, role, now)
+        .run();
+      result = 'added';
+    } else {
+      const invId = crypto.randomUUID();
+      await ctx.env.DB
+        .prepare(`
+          INSERT INTO church_invitations (id, church_id, email, role, invited_by, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT (church_id, email) DO UPDATE SET role = excluded.role
+        `)
+        .bind(invId, churchId, email, role, user.id, now)
+        .run();
+    }
+
+    const resendApiKey = ctx.env.RESEND_API_KEY || ctx.env.VITE_RESEND_API_KEY;
     if (resendApiKey) {
       try {
         const origin = new URL(ctx.request.url).origin;
         const loginUrl = `${origin}/login?invited_to=${encodeURIComponent(churchName)}`;
         const fromEmail = ctx.env.RESEND_FROM_EMAIL || 'Service Buttler <onboarding@resend.dev>';
-
         const roleLabel = role === 'admin' ? 'an Administrator' : role === 'owner' ? 'an Owner' : 'an Editor';
         const inviterText = inviterName ? `${inviterName} has invited you` : `You have been invited`;
 
-        const html = `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Invitation to ${churchName}</title>
-            </head>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 24px; margin: 0;">
-              <table width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center">
-                    <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; max-width: 520px; text-align: left; padding: 36px 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-                      <div style="font-size: 20px; font-weight: 800; color: #4f46e5; margin-bottom: 24px; display: flex; align-items: center; gap: 8px;">
-                        <span>Service Buttler</span>
-                      </div>
-                      <h1 style="font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 12px; line-height: 1.3;">
-                        Join the ${churchName} team
-                      </h1>
-                      <p style="font-size: 15px; line-height: 1.6; color: #475569; margin: 16px 0;">
-                        ${inviterText} to collaborate on <strong>${churchName}</strong> on Service Buttler as <span style="display: inline-block; background-color: #eef2ff; color: #4f46e5; padding: 3px 10px; border-radius: 9999px; font-size: 13px; font-weight: 600;">${roleLabel}</span>.
-                      </p>
-                      <p style="font-size: 14px; line-height: 1.6; color: #64748b; margin: 16px 0;">
-                        With Service Buttler, you can coordinate Sunday live action cards, sermon notes, announcement slides, and congregation cues in real time.
-                      </p>
-                      <div style="text-align: center; margin: 32px 0 24px;">
-                        <a href="${loginUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff !important; text-decoration: none; padding: 13px 32px; border-radius: 10px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);">
-                          Accept Invitation & Sign In
-                        </a>
-                      </div>
-                      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 20px;" />
-                      <p style="font-size: 12px; line-height: 1.5; color: #94a3b8; margin: 0;">
-                        Sign in using <strong>${email}</strong>. If you do not have an account yet, one will be created when you sign in with this email.
-                      </p>
-                    </div>
-                    <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">
-                      Service Buttler · The modern live service companion for churches
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </body>
-          </html>
-        `;
-
-        const resendRes = await fetch('https://api.resend.com/emails', {
+        await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${resendApiKey}`,
@@ -110,30 +81,26 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
           body: JSON.stringify({
             from: fromEmail,
             to: [email],
-            subject: `You've been invited to join ${churchName} on Service Buttler`,
-            html,
+            subject: `Join the ${churchName} team`,
+            html: `
+              <div style="font-family: sans-serif; padding: 24px; max-width: 500px;">
+                <h2 style="color: #4f46e5;">Service Buttler</h2>
+                <p>${inviterText} to join <strong>${churchName}</strong> as <strong>${roleLabel}</strong>.</p>
+                <p style="margin: 24px 0;">
+                  <a href="${loginUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">
+                    Accept Invitation
+                  </a>
+                </p>
+              </div>
+            `,
           }),
         });
-
-        if (resendRes.ok) {
-          emailSent = true;
-        } else {
-          const errData = await resendRes.text();
-          emailError = `Resend HTTP ${resendRes.status}: ${errData}`;
-          console.error('Failed to send email via Resend:', emailError);
-        }
       } catch (e) {
-        emailError = e instanceof Error ? e.message : 'Unknown email sending error';
-        console.error('Error dispatching email:', e);
+        console.warn('Failed to dispatch invite email:', e);
       }
     }
 
-    return json({
-      status: result, // 'added' or 'invited'
-      emailSent,
-      hasResendConfigured: Boolean(resendApiKey),
-      emailError,
-    });
+    return json({ ok: true, result });
   } catch (err) {
     return errorResponse(err);
   }

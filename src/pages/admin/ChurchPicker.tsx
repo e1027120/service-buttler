@@ -2,9 +2,9 @@ import { Church as ChurchIcon, LogOut, Plus } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge, Button, EmptyState, Field, Input, Modal, PageLoader, Select, useToast } from '../../components/ui';
+import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { supabase, unwrap } from '../../lib/supabase';
-import type { Church, Membership } from '../../lib/types';
+import type { Membership } from '../../lib/types';
 import { errorMessage, slugify, timezones } from '../../lib/utils';
 
 export default function ChurchPicker() {
@@ -12,15 +12,22 @@ export default function ChurchPicker() {
   const [list, setList] = useState<Membership[] | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const load = () => {
+    api.churches
+      .list()
+      .then((data) => {
+        const memberships: Membership[] = data.map((c) => ({
+          church_id: c.id,
+          role: c.role,
+          churches: c,
+        }));
+        setList(memberships);
+      })
+      .catch(() => setList([]));
+  };
+
   useEffect(() => {
-    supabase
-      .from('church_members')
-      .select('church_id, role, churches(*)')
-      .eq('user_id', user!.id)
-      .then(({ data }) => {
-        const l = ((data as unknown as Membership[]) || []).filter((m) => m.churches);
-        setList(l.sort((a, b) => a.churches.name.localeCompare(b.churches.name)));
-      });
+    load();
   }, [user]);
 
   if (!list) return <PageLoader />;
@@ -74,12 +81,12 @@ export default function ChurchPicker() {
           </div>
         )}
       </main>
-      <CreateChurchModal open={creating} onClose={() => setCreating(false)} />
+      <CreateChurchModal open={creating} onClose={() => setCreating(false)} onCreated={load} />
     </div>
   );
 }
 
-function CreateChurchModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CreateChurchModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const navigate = useNavigate();
   const toast = useToast();
   const [name, setName] = useState('');
@@ -92,19 +99,18 @@ function CreateChurchModal({ open, onClose }: { open: boolean; onClose: () => vo
     e.preventDefault();
     setBusy(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const church = unwrap(
-        await supabase
-          .from('churches')
-          .insert({ name: name.trim(), slug, timezone: tz, created_by: auth.user!.id, landing: { welcome_title: `Welcome to ${name.trim()}`, show_next_service: true } })
-          .select()
-          .single(),
-      ) as Church;
+      const church = await api.churches.create({
+        name: name.trim(),
+        slug,
+        timezone: tz,
+        landing: { welcome_title: `Welcome to ${name.trim()}`, show_next_service: true },
+      });
       toast('Church created');
+      onCreated();
       navigate(`/admin/${church.id}/services`);
     } catch (err) {
       const msg = errorMessage(err);
-      toast(msg.includes('duplicate') ? 'That URL is already taken — pick another.' : msg, 'error');
+      toast(msg.includes('already taken') ? 'That URL is already taken — pick another.' : msg, 'error');
     } finally {
       setBusy(false);
     }
@@ -138,10 +144,10 @@ function CreateChurchModal({ open, onClose }: { open: boolean; onClose: () => vo
             }}
           />
         </Field>
-        <Field label="Time zone" hint="Service times are interpreted in this time zone.">
+        <Field label="Timezone">
           <Select value={tz} onChange={(e) => setTz(e.target.value)}>
             {timezones().map((z) => (
-              <option key={z}>{z}</option>
+              <option key={z} value={z}>{z}</option>
             ))}
           </Select>
         </Field>
@@ -153,4 +159,3 @@ function CreateChurchModal({ open, onClose }: { open: boolean; onClose: () => vo
     </Modal>
   );
 }
-

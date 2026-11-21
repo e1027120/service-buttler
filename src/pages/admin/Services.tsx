@@ -1,7 +1,7 @@
 import { CalendarClock, Clock, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Button, ConfirmButton, EmptyState, Field, Input, Modal, PageLoader, Select, Textarea, Toggle, useToast } from '../../components/ui';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { DAYS, type Service, type ServiceTime } from '../../lib/types';
 import { describeServiceTime, errorMessage, slugify } from '../../lib/utils';
 import { PageHeader } from './AdminLayout';
@@ -19,73 +19,34 @@ export default function Services() {
     byService: {},
   });
 
-  // Track live online presence for this church
-  useEffect(() => {
-    if (!church.slug) return;
-    const channel = supabase.channel(`live:${church.slug}`);
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        setOnlineCount(Object.keys(state).length);
-      })
-      .on('presence', { event: 'join' }, () => {
-        const state = channel.presenceState();
-        setOnlineCount(Object.keys(state).length);
-      })
-      .on('presence', { event: 'leave' }, () => {
-        const state = channel.presenceState();
-        setOnlineCount(Object.keys(state).length);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [church.slug]);
-
-  const loadScans = useCallback(async () => {
+  const loadStats = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from('service_scans')
-        .select('service_id')
-        .eq('church_id', church.id);
-      if (data) {
-        const bySvc: Record<string, number> = {};
-        for (const item of data) {
-          if (item.service_id) {
-            bySvc[item.service_id] = (bySvc[item.service_id] || 0) + 1;
-          }
-        }
-        setScanStats({ totalScans: data.length, byService: bySvc });
-      }
+      const stats = await api.presence.getStats(church.id);
+      setOnlineCount(stats.onlineCount);
+      setScanStats(stats.scanStats);
     } catch {
-      // Graceful if table not yet migrated
+      /* ignore */
     }
   }, [church.id]);
 
   const load = useCallback(async () => {
-    const data = unwrap(
-      await supabase
-        .from('services')
-        .select('*, service_times(*)')
-        .eq('church_id', church.id)
-        .order('sort_order')
-        .order('created_at'),
-    ) as Service[];
+    const data = await api.services.list(church.id);
     data.forEach((s) =>
       s.service_times?.sort((a, b) => (a.specific_date || '').localeCompare(b.specific_date || '') || (a.day_of_week ?? 0) - (b.day_of_week ?? 0) || a.start_time.localeCompare(b.start_time)),
     );
     setServices(data);
-    loadScans();
-  }, [church.id, loadScans]);
+    loadStats();
+  }, [church.id, loadStats]);
 
   useEffect(() => {
     load().catch((e) => toast(errorMessage(e), 'error'));
-  }, [load, toast]);
+    const interval = setInterval(loadStats, 15000);
+    return () => clearInterval(interval);
+  }, [load, loadStats, toast]);
 
   const removeService = async (s: Service) => {
     try {
-      unwrap(await supabase.from('services').delete().eq('id', s.id));
+      await api.services.delete(s.id);
       toast('Service deleted');
       load();
     } catch (e) {
@@ -95,7 +56,7 @@ export default function Services() {
 
   const removeTime = async (t: ServiceTime) => {
     try {
-      unwrap(await supabase.from('service_times').delete().eq('id', t.id));
+      await api.serviceTimes.delete(t.id);
       load();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -104,7 +65,7 @@ export default function Services() {
 
   const toggleTime = async (t: ServiceTime) => {
     try {
-      unwrap(await supabase.from('service_times').update({ is_active: !t.is_active }).eq('id', t.id));
+      await api.serviceTimes.update({ id: t.id, is_active: !t.is_active });
       load();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -259,8 +220,8 @@ function ServiceModal({ initial, churchId, onClose, onSaved }: { initial: Partia
       is_active: form.is_active ?? true,
     };
     try {
-      if (initial.id) unwrap(await supabase.from('services').update(payload).eq('id', initial.id));
-      else unwrap(await supabase.from('services').insert(payload));
+      if (initial.id) await api.services.update({ id: initial.id, ...payload });
+      else await api.services.create(payload);
       toast('Service saved');
       onSaved();
     } catch (err) {
@@ -332,16 +293,14 @@ function TimeModal({ service, onClose, onSaved }: { service: Service; onClose: (
     }
     setBusy(true);
     try {
-      unwrap(
-        await supabase.from('service_times').insert({
-          service_id: service.id,
-          day_of_week: mode === 'weekly' ? day : null,
-          specific_date: mode === 'once' ? date : null,
-          start_time: start,
-          end_time: end,
-          label: label || null,
-        }),
-      );
+      await api.serviceTimes.create({
+        service_id: service.id,
+        day_of_week: mode === 'weekly' ? day : null,
+        specific_date: mode === 'once' ? date : null,
+        start_time: start,
+        end_time: end,
+        label: label || null,
+      });
       toast('Time added');
       onSaved();
     } catch (err) {

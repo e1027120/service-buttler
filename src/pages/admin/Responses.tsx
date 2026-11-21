@@ -1,7 +1,7 @@
 import { Archive, BarChart3, CheckCircle2, Clock, Download, HelpCircle, Inbox, MessageSquare, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, Button, ConfirmButton, EmptyState, PageLoader, Select, useToast } from '../../components/ui';
-import { supabase, unwrap } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Action, ActionResponse, PollContent, Service } from '../../lib/types';
 import { downloadCsv, errorMessage, formatInZone } from '../../lib/utils';
 import { PageHeader } from './AdminLayout';
@@ -81,25 +81,14 @@ export default function Responses() {
   const [groupByService, setGroupByService] = useState(false);
 
   const load = useCallback(async () => {
-    const [acts, resp, srvs] = await Promise.all([
-      supabase
-        .from('actions')
-        .select('*')
-        .eq('church_id', church.id),
-      supabase
-        .from('action_responses')
-        .select('*')
-        .eq('church_id', church.id)
-        .eq('is_archived', showArchived)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('services')
-        .select('*, service_times(*)')
-        .eq('church_id', church.id),
+    const [allActs, allResp, srvs, votes] = await Promise.all([
+      api.actions.list(church.id),
+      api.responses.list(church.id),
+      api.services.list(church.id),
+      api.responses.listVotes(church.id).catch(() => []),
     ]);
 
-    const allActs = (unwrap(acts) as Action[]) || [];
-    const relevantActs = allActs.filter(
+    const relevantActs = (allActs || []).filter(
       (a) =>
         a.type === 'form' ||
         a.type === 'poll' ||
@@ -107,21 +96,9 @@ export default function Responses() {
         (a.content as Record<string, unknown>)?.form_type === 'question',
     );
     setActions(relevantActs);
-    setResponses((unwrap(resp) as ActionResponse[]) || []);
-    setServices((unwrap(srvs) as Service[]) || []);
-
-    // Load poll votes for any polls in this church
-    const pollIds = relevantActs.filter((a) => a.type === 'poll').map((a) => a.id);
-    if (pollIds.length > 0) {
-      const { data: votesData } = await supabase
-        .from('poll_votes')
-        .select('*')
-        .in('action_id', pollIds)
-        .order('created_at', { ascending: false });
-      setPollVotes((votesData as PollVote[]) || []);
-    } else {
-      setPollVotes([]);
-    }
+    setResponses((allResp || []).filter((r) => Boolean(r.is_archived) === showArchived));
+    setServices(srvs || []);
+    setPollVotes(votes || []);
   }, [church.id, showArchived]);
 
   useEffect(() => {
@@ -130,7 +107,7 @@ export default function Responses() {
 
   const toggleArchive = async (r: ActionResponse) => {
     try {
-      unwrap(await supabase.from('action_responses').update({ is_archived: !r.is_archived }).eq('id', r.id));
+      await api.responses.update({ id: r.id, is_archived: !r.is_archived });
       load();
     } catch (e) {
       toast(errorMessage(e), 'error');
@@ -141,7 +118,7 @@ export default function Responses() {
     try {
       const current = r.payload.answered === 'true';
       const updatedPayload = { ...r.payload, answered: String(!current) };
-      unwrap(await supabase.from('action_responses').update({ payload: updatedPayload }).eq('id', r.id));
+      await api.responses.update({ id: r.id, payload: updatedPayload });
       setResponses((prev) =>
         prev ? prev.map((item) => (item.id === r.id ? { ...item, payload: updatedPayload } : item)) : null,
       );
@@ -153,7 +130,7 @@ export default function Responses() {
 
   const remove = async (r: ActionResponse) => {
     try {
-      unwrap(await supabase.from('action_responses').delete().eq('id', r.id));
+      await api.responses.delete(r.id);
       toast('Response deleted');
       load();
     } catch (e) {
