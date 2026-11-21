@@ -1,4 +1,4 @@
-import { type Env, errorResponse, HttpError, json } from '../../../server/supabase';
+import { type Env, errorResponse, HttpError, json } from '../../../server/db';
 
 interface PCOItem {
   id: string;
