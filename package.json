@@ -11,10 +11,9 @@
     "typecheck": "tsc -b && tsc -p functions/tsconfig.json",
     "preview": "npm run build && wrangler pages dev dist --port 8788",
     "deploy": "npm run build && wrangler pages deploy dist",
-    "db:push": "supabase db push"
+    "db:schema": "wrangler d1 execute service-buttler-db --remote --file=d1/schema.sql"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.460.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

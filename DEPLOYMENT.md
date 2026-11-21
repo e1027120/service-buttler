@@ -1,90 +1,50 @@
-# Deployment Guide: Cloudflare Pages & Supabase
+# Deployment Guide — Cloudflare Pages, D1 & R2
 
-This step-by-step checklist guides you through setting up your production infrastructure for **Service Buttler**.
-
----
-
-## Part 1: Supabase Setup (5 minutes)
-
-1. **Create a Supabase Project**:
-   - Go to [supabase.com](https://supabase.com) and create an organization & project.
-   - Choose a region geographically close to your church.
-
-2. **Run Migrations**:
-   - In your project, click **SQL Editor** in the left sidebar.
-   - Click **New query**.
-   - Open [`supabase/all_in_one.sql`](./supabase/all_in_one.sql) in this repository, copy everything, paste into the SQL editor, and click **Run**.
-   - *(Optional Demo Data)*: Run [`supabase/seed.sql`](./supabase/seed.sql) to populate the demo church `grace-community`.
-
-3. **Get Your API Credentials**:
-   - Go to **Project Settings** (gear icon) → **API**.
-   - Copy:
-     - **Project URL** (e.g. `https://xyzcompany.supabase.co`)
-     - **anon / public key** (e.g. `eyJhbGciOiJIUzI1NiIsInR...`)
-
-4. **Auth URL Configuration**:
-   - In Supabase, go to **Authentication** → **URL Configuration**.
-   - Under **Site URL**, enter your Cloudflare Pages domain (e.g. `https://service-buttler.pages.dev` or custom domain).
-   - Under **Redirect URLs**, add:
-     - `http://localhost:5173/**` (for local dev)
-     - `https://service-buttler.pages.dev/**` (for production)
-     - `https://yourchurchdomain.com/**` (if using custom domain)
+Service Buttler runs natively on **Cloudflare Pages** with **Pages Functions**, **Cloudflare D1** (SQLite database), and **Cloudflare R2** (media storage).
 
 ---
 
-## Part 2: Cloudflare Setup (3 minutes)
+## 1. Provision Cloudflare Resources
 
-1. **Get Cloudflare Account ID**:
-   - In [dash.cloudflare.com](https://dash.cloudflare.com), your **Account ID** is shown in the right sidebar of the Overview page.
-
-2. **Create Cloudflare API Token**:
-   - Click your profile icon (top right) → **My Profile** → **API Tokens** → **Create Token**.
-   - Choose the **Cloudflare Pages** template:
-     - Permissions: `Account - Cloudflare Pages - Edit`, `Account - Account Settings - Read`.
-   - Copy the generated token.
-
-3. **Create the Pages Project in Cloudflare**:
-   - Go to **Workers & Pages** → **Create application** → **Pages** → **Direct Upload**.
-   - Name the project: `service-buttler`.
-
----
-
-## Part 3: GitHub CI/CD Pipeline Setup (2 minutes)
-
-1. **Push Code to GitHub**:
+1. **Create D1 database**:
    ```bash
-   git init
-   git add .
-   git commit -m "feat: initial production commit"
-   git branch -M main
-   git remote add origin https://github.com/your-org/service-buttler.git
-   git push -u origin main
+   npx wrangler d1 create service-buttler-db
+   ```
+   Copy the returned `database_id` into `wrangler.toml`.
+
+2. **Apply database schema**:
+   ```bash
+   npx wrangler d1 execute service-buttler-db --remote --file=d1/schema.sql
    ```
 
-2. **Configure GitHub Repository Secrets**:
-   - In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions**.
-   - Add these repository secrets:
-
-| Secret Name | Value |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | The Cloudflare API token created in Part 2 |
-| `CLOUDFLARE_ACCOUNT_ID` | Your 32-character Cloudflare Account ID |
-| `SUPABASE_URL` | Your Supabase Project URL (`https://xyz.supabase.co`) |
-| `SUPABASE_ANON_KEY` | Your Supabase anon/public API key |
-| `PUBLIC_SITE_URL` | Your Pages URL, e.g. `https://service-buttler.pages.dev` |
-
-3. **Verify Deployment**:
-   - Go to the **Actions** tab in GitHub.
-   - The **Deploy to Cloudflare Pages** workflow will run automatically.
-   - Once complete, open `https://service-buttler.pages.dev` to see your live application.
+3. **Create R2 bucket**:
+   ```bash
+   npx wrangler r2 bucket create service-buttler-assets
+   ```
 
 ---
 
-## Part 4: Production Checklist for Sunday Morning
+## 2. Configure Cloudflare Pages
 
-- [ ] Add your church at `/admin`.
-- [ ] Configure your services and recurring Sunday times under **Services & times**.
-- [ ] Add your action items (welcome announcement, sermon notes, live poll, giving options) under **Actions**.
-- [ ] Brand your landing page with logo and colors under **Branding & landing**.
-- [ ] Print the generated QR code under **QR & NFC** and test scanning with an iPhone and Android.
-- [ ] Test the live cue switch on the AV tech's laptop by clicking **Push Live** and watching your phone instantly update.
+1. Connect the GitHub repository to a Cloudflare Pages project (`service-buttler`):
+   - **Production branch**: `main`
+   - **Build command**: `npm run build`
+   - **Build output directory**: `dist`
+2. Bindings are declared in `wrangler.toml` (`DB` → `service-buttler-db`, `ASSETS_BUCKET` → `service-buttler-assets`, `compatibility_flags = ["nodejs_compat"]`).
+3. Add email secrets in **Cloudflare Pages → Settings → Environment variables** (Production):
+   - `RESEND_API_KEY`: Your Resend API key (used for Magic Links & team invitations)
+   - `RESEND_FROM_EMAIL`: Sender address, e.g. `Service Buttler <noreply@service-buttler.com>`
+
+---
+
+## 3. Deploy
+
+Push to `main` to trigger an automated Cloudflare Pages build & deployment, or deploy manually with:
+```bash
+npm run deploy
+```
+
+### Smoke-Test Endpoints
+- `GET /api/health` → `{ "ok": true, "provider": "cloudflare", "d1Configured": true, "r2Configured": true }`
+- `GET /api/config` → `{ "provider": "cloudflare", "db": "d1", "storage": "r2" }`
+- `GET /api/live/<churchSlug>` → Live attendee JSON payload

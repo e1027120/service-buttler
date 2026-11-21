@@ -1,5 +1,5 @@
 // ----------------------------------------------------------------------------
-// Domain types (mirror supabase/migrations)
+// Domain types (mirror d1/schema.sql)
 // ----------------------------------------------------------------------------
 
 export type MemberRole = 'owner' | 'admin' | 'editor';

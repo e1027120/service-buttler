@@ -84,12 +84,6 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     return derivedHashHex === originalHashHex;
   }
 
-  // 2. Fallback for bcrypt (Supabase export)
-  if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
-    // If bcrypt-ts or similar isn't in bundle, we check via basic constant-time or password re-hash on magic link
-    return false;
-  }
-
   return false;
 }
 
