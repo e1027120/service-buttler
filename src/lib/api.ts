@@ -86,7 +86,16 @@ export const api = {
       }
     },
     async me() {
-      return request<{ user: { id: string; email: string; full_name: string | null; created_at: string }; session: { id: string } }>('/api/auth/me');
+      return request<{
+        user: { id: string; email: string; full_name: string | null; created_at: string; has_password?: boolean };
+        session: { id: string };
+      }>('/api/auth/me');
+    },
+    async updatePassword(data: { current_password?: string; new_password: string }) {
+      return request<{ ok: boolean; has_password: boolean }>('/api/auth/password', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
     },
     async sendMagicLink(email: string) {
       return request<{ ok: boolean }>('/api/auth/magic', {

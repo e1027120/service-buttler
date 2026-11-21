@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ExternalLink,
   Inbox,
+  KeyRound,
   Layers,
   LayoutDashboard,
   LogOut,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { AccountPasswordModal } from '../../components/AccountPasswordModal';
 import { PageLoader, cx } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -55,6 +57,7 @@ export default function AdminLayout() {
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   const userId = user?.id;
 
@@ -209,6 +212,19 @@ export default function AdminLayout() {
       <div className="border-t border-slate-200 p-3">
         <div className="truncate px-3 pb-2 text-xs text-slate-500">{user?.email}</div>
         <button
+          onClick={() => {
+            setMobileOpen(false);
+            setPasswordModalOpen(true);
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+        >
+          <KeyRound className="h-4 w-4" />
+          <span>{user?.has_password ? 'Change password' : 'Set password'}</span>
+          {!user?.has_password && (
+            <span className="ml-auto h-2 w-2 rounded-full bg-amber-500" title="No password set yet" />
+          )}
+        </button>
+        <button
           onClick={async () => {
             await signOut();
             navigate('/login');
@@ -252,6 +268,8 @@ export default function AdminLayout() {
           <Outlet context={ctx} />
         </div>
       </main>
+
+      <AccountPasswordModal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ export interface User {
   email: string;
   full_name: string | null;
   created_at: string;
+  has_password?: boolean;
 }
 
 export interface Session {
@@ -144,7 +145,8 @@ export async function authenticate(request: Request, env: Env): Promise<{ user: 
 
   const row = await env.DB.prepare(`
     SELECT s.id as session_id, s.user_id, s.expires_at, s.created_at as session_created_at,
-           u.id as user_id, u.email, u.full_name, u.created_at as user_created_at
+           u.id as user_id, u.email, u.full_name, u.created_at as user_created_at,
+           (u.password_hash IS NOT NULL AND u.password_hash != '') as has_password
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ?
@@ -158,6 +160,7 @@ export async function authenticate(request: Request, env: Env): Promise<{ user: 
       email: string;
       full_name: string | null;
       user_created_at: string;
+      has_password: number;
     }>();
 
   if (!row) {
@@ -170,6 +173,7 @@ export async function authenticate(request: Request, env: Env): Promise<{ user: 
       email: row.email,
       full_name: row.full_name,
       created_at: row.user_created_at,
+      has_password: Boolean(row.has_password),
     },
     session: {
       id: row.session_id,

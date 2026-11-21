@@ -1,6 +1,7 @@
-import { Church as ChurchIcon, LogOut, Plus } from 'lucide-react';
+import { Church as ChurchIcon, KeyRound, LogOut, Plus } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AccountPasswordModal } from '../../components/AccountPasswordModal';
 import { Badge, Button, EmptyState, Field, Input, Modal, PageLoader, Select, useToast } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
@@ -11,6 +12,7 @@ export default function ChurchPicker() {
   const { user, signOut } = useAuth();
   const [list, setList] = useState<Membership[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   const load = () => {
     api.churches
@@ -37,8 +39,11 @@ export default function ChurchPicker() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
           <Link to="/" className="font-bold text-slate-900">Service Buttler</Link>
-          <div className="flex items-center gap-3 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
             <span className="hidden sm:inline">{user?.email}</span>
+            <Button variant="ghost" size="sm" onClick={() => setPasswordModalOpen(true)}>
+              <KeyRound className="h-4 w-4" /> {user?.has_password ? 'Password' : 'Set password'}
+            </Button>
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="h-4 w-4" /> Sign out
             </Button>
@@ -82,6 +87,7 @@ export default function ChurchPicker() {
         )}
       </main>
       <CreateChurchModal open={creating} onClose={() => setCreating(false)} onCreated={load} />
+      <AccountPasswordModal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} />
     </div>
   );
 }

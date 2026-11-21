@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   full_name: string | null;
   created_at: string;
+  has_password?: boolean;
 }
 
 export interface AuthSession {
